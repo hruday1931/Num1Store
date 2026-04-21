@@ -1,0 +1,10 @@
+# Create a .env.local file in your project root with the following variables:
+
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+
+# Get these values from your Supabase dashboard:
+# 1. Go to https://supabase.com/dashboard
+# 2. Select or create a project
+# 3. Go to Settings > API
+# 4. Copy the Project URL and Anon Key

@@ -1,0 +1,10 @@
+
+<svg width="384" height="384" viewBox="0 0 384 384" xmlns="http://www.w3.org/2000/svg">
+  <rect width="384" height="384" fill="#ec4899" rx="38.400000000000006"/>
+  <text x="50%" y="45%" text-anchor="middle" font-family="Arial, sans-serif" font-size="57.599999999999994" font-weight="bold" fill="white">
+    Num1
+  </text>
+  <text x="50%" y="65%" text-anchor="middle" font-family="Arial, sans-serif" font-size="46.08" font-weight="bold" fill="#fbbf24">
+    Store
+  </text>
+</svg>
