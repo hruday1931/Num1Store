@@ -31,6 +31,7 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   compress: true,
   generateEtags: true,
+  swcMinify: true,
   httpAgentOptions: {
     keepAlive: true,
   },
