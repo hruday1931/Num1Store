@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 // Updated build configuration
+// Build configuration for Vercel deployment
 
 const nextConfig: NextConfig = {
   images: {
