@@ -22,14 +22,13 @@ const nextConfig: NextConfig = {
   experimental: {
     optimizeCss: true,
     optimizePackageImports: ['lucide-react', '@heroicons/react'],
-    serverComponentsExternalPackages: ['@supabase/supabase-js'],
   },
+  serverExternalPackages: ['@supabase/supabase-js'],
   compiler: {
     removeConsole: process.env.NODE_ENV === 'production',
   },
   poweredByHeader: false,
   reactStrictMode: true,
-  swcMinify: true,
   compress: true,
   generateEtags: true,
   httpAgentOptions: {
