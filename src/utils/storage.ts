@@ -214,7 +214,7 @@ export async function checkBucketExists(
       };
     }
 
-    const bucketExists = buckets?.some(bucket => bucket.name === bucketName);
+    const bucketExists = buckets?.some((bucket: any) => bucket.name === bucketName);
     return { exists: bucketExists || false };
 
   } catch (error) {

@@ -5,7 +5,14 @@ import { supabaseClient } from "@/utils/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
 import type { Database } from "@/types";
 
-const supabase = supabaseClient();
+// Create Supabase client only at runtime, not build time
+let supabase: ReturnType<typeof supabaseClient> | null = null;
+const getSupabase = () => {
+  if (!supabase) {
+    supabase = supabaseClient();
+  }
+  return supabase;
+};
 
 interface AuthContextType {
   user: User | null;
@@ -28,14 +35,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Get initial session and handle refresh
     const getInitialSession = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const client = getSupabase();
+        if (!client) return;
+        
+        const { data: { session } } = await client.auth.getSession();
         
         if (session) {
           // Check if session is expired and refresh if needed
           const now = Math.floor(Date.now() / 1000);
           if (session.expires_at && session.expires_at < now) {
             try {
-              const { data: { session: refreshedSession }, error } = await supabase.auth.refreshSession();
+              const { data: { session: refreshedSession }, error } = await client.auth.refreshSession();
               if (!error && refreshedSession) {
                 setSession(refreshedSession);
                 setUser(refreshedSession.user);
@@ -70,14 +80,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Set up periodic session refresh (every 5 minutes)
     const refreshInterval = setInterval(async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const client = getSupabase();
+        if (!client) return;
+        
+        const { data: { session } } = await client.auth.getSession();
         if (session) {
           const now = Math.floor(Date.now() / 1000);
           const timeUntilExpiry = (session.expires_at || 0) - now;
           
           // Refresh if session expires in less than 10 minutes
           if (timeUntilExpiry < 600) {
-            const { data: { session: refreshedSession }, error } = await supabase.auth.refreshSession();
+            const { data: { session: refreshedSession }, error } = await client.auth.refreshSession();
             if (!error && refreshedSession) {
               setSession(refreshedSession);
               setUser(refreshedSession.user);
@@ -90,9 +103,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, 5 * 60 * 1000); // 5 minutes
 
     // Listen for auth changes
+    const client = getSupabase();
+    if (!client) return;
+    
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event: string, session: Session | null) => {
+    } = client.auth.onAuthStateChange(async (event: string, session: Session | null) => {
       try {
         if (event === 'TOKEN_REFRESHED') {
           // Silent token refresh, don't log to console
@@ -119,11 +135,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Silent cleanup
       }
     };
-  }, [supabase?.auth]);
+  }, []);
 
   const signIn = async (email: string, password: string) => {
     try {
-      const { error } = await supabase?.auth?.signInWithPassword?.({
+      const client = getSupabase();
+      if (!client) return { error: new Error('Authentication not available') };
+      
+      const { error } = await client.auth.signInWithPassword({
         email,
         password,
       }) || { error: new Error('Authentication not available') };
@@ -136,7 +155,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signUp = async (email: string, password: string, metadata?: any) => {
     try {
-      const { error } = await supabase?.auth?.signUp?.({
+      const client = getSupabase();
+      if (!client) return { error: new Error('Authentication not available') };
+      
+      const { error } = await client.auth.signUp({
         email,
         password,
         options: {
@@ -152,7 +174,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     try {
-      await supabase?.auth?.signOut?.();
+      const client = getSupabase();
+      if (client) {
+        await client.auth.signOut();
+      }
       // Clear local state immediately
       setUser(null);
       setSession(null);
@@ -166,7 +191,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const resetPassword = async (email: string) => {
     try {
-      const { error } = await supabase?.auth?.resetPasswordForEmail?.(email, {
+      const client = getSupabase();
+      if (!client) return { error: new Error('Authentication not available') };
+      
+      const { error } = await client.auth.resetPasswordForEmail(email, {
         redirectTo: `${window?.location?.origin || ''}/auth/reset-password`,
       }) || { error: new Error('Authentication not available') };
       return { error };

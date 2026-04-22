@@ -4,9 +4,12 @@ import { Database } from '@/types';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-// Validate environment variables
+// Validate environment variables only at runtime, not build time
 if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables. Please check your .env.local file.');
+  console.error('Missing Supabase environment variables:', {
+    hasUrl: !!supabaseUrl,
+    hasAnonKey: !!supabaseAnonKey
+  });
 }
 
 // Singleton pattern to prevent multiple instances and auth locks

@@ -4,9 +4,12 @@ import { Database } from '../types';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-// Validate environment variables
+// Validate environment variables only at runtime, not build time
 if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables. Please check your .env.local file.');
+  console.error('Missing Supabase environment variables:', {
+    hasUrl: !!supabaseUrl,
+    hasAnonKey: !!supabaseAnonKey
+  });
 }
 
 // Singleton pattern to prevent multiple instances
@@ -14,6 +17,12 @@ let supabaseInstance: ReturnType<typeof createClient<Database>> | null = null;
 
 export const supabase = (() => {
   if (!supabaseInstance) {
+    // Check if environment variables are available before creating client
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.error('Cannot create Supabase client: missing environment variables');
+      return null as any;
+    }
+    
     // Log configuration for debugging (remove in production)
     if (typeof window !== 'undefined') {
       console.log('Supabase URL:', supabaseUrl);

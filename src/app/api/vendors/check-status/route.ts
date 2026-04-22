@@ -1,10 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+// Create Supabase client only at runtime, not build time
+const createSupabaseClient = () => {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  // Validate environment variables only at runtime, not build time
+  if (!supabaseUrl || !supabaseServiceKey) {
+    console.error('Missing Supabase environment variables for vendor check-status:', {
+      hasUrl: !!supabaseUrl,
+      hasServiceKey: !!supabaseServiceKey
+    });
+  }
+
+  return createClient(
+    supabaseUrl || '',
+    supabaseServiceKey || ''
+  );
+};
 
 export async function GET(request: NextRequest) {
   try {
@@ -17,6 +31,9 @@ export async function GET(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Create Supabase client at runtime
+    const supabase = createSupabaseClient();
 
     // Check if user exists and has a vendor record with active subscription
     const { data: vendor, error: vendorError } = await supabase

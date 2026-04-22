@@ -55,7 +55,7 @@ export async function uploadImageFixed(
       currentUser = sessionUser;
     }
     
-    if (!currentUser.id) {
+    if (!currentUser || !currentUser.id) {
       console.error('User object exists but no ID');
       return {
         url: '',
@@ -113,7 +113,7 @@ export async function uploadImageFixed(
     // Ensure bucket exists
     try {
       const { data: buckets } = await supabase.storage.listBuckets();
-      const bucketExists = buckets?.some(bucket => bucket.name === bucketName);
+      const bucketExists = buckets?.some((bucket: any) => bucket.name === bucketName);
       
       if (!bucketExists) {
         console.log(`Creating bucket: ${bucketName}`);
