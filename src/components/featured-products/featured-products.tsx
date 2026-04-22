@@ -262,7 +262,7 @@ export function FeaturedProducts() {
       let { data, error } = await supabase
         .from('products')
         .select('*')
-        .eq('status', 'active')
+        .eq('is_active', true)
         .order('created_at', { ascending: false })
         .limit(8);
 
@@ -274,7 +274,7 @@ export function FeaturedProducts() {
         const retryResult = await supabase
           .from('products')
           .select('*')
-          .eq('status', 'active')
+          .eq('is_active', true)
           .order('created_at', { ascending: false })
           .limit(8);
         data = retryResult.data;
@@ -287,7 +287,7 @@ export function FeaturedProducts() {
         const fallbackResult = await supabase
           .from('products')
           .select('*')
-          .eq('status', 'active')
+          .eq('is_active', true)
           .order('created_at', { ascending: false })
           .limit(8);
         data = fallbackResult.data;

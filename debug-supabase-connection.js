@@ -2,6 +2,7 @@
 // Run this with: node debug-supabase-connection.js
 
 const { createClient } = require('@supabase/supabase-js');
+require('dotenv').config({ path: '.env.local' });
 
 // Check environment variables
 console.log('=== Supabase Connection Debug ===');
