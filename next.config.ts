@@ -26,8 +26,7 @@ const nextConfig: NextConfig = {
     optimizeCss: true,
     optimizePackageImports: ['lucide-react', '@heroicons/react'],
   },
-  serverExternalPackages: ['@supabase/supabase-js'],
-  compiler: {
+    compiler: {
     removeConsole: process.env.NODE_ENV === 'production',
   },
   poweredByHeader: false,

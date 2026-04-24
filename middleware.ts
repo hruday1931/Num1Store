@@ -1,4 +1,4 @@
-import { createMiddlewareClient } from './src/utils/supabase/server'
+import { createMiddlewareClient } from '@/utils/supabase/server'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 

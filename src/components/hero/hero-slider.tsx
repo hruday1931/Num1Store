@@ -20,10 +20,16 @@ interface HeroBanner {
 }
 
 // Initialize Supabase client
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const getSupabaseClient = () => {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error('Supabase environment variables are missing');
+  }
+  
+  return createClient(supabaseUrl, supabaseAnonKey);
+};
 
 export function HeroSlider() {
   const [heroBanners, setHeroBanners] = useState<HeroBanner[]>([]);
@@ -32,6 +38,7 @@ export function HeroSlider() {
   useEffect(() => {
     const fetchHeroBanners = async () => {
       try {
+        const supabase = getSupabaseClient();
         const { data, error } = await supabase
           .from('hero_banners')
           .select('*')

@@ -3,19 +3,14 @@ import { Database } from '../../types';
 import { cookies } from 'next/headers';
 import type { NextRequest } from 'next/server';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-
-// Validate environment variables only at runtime, not build time
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('Missing Supabase environment variables:', {
-    hasUrl: !!supabaseUrl,
-    hasAnonKey: !!supabaseAnonKey
-  });
-}
+// Environment variables will be validated at runtime inside functions
 
 // Create a server client with cookie context for authentication
 export async function createClient() {
+  // Get environment variables at runtime
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  
   // Validate environment variables before creating client
   if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error(
@@ -54,6 +49,10 @@ export async function createClient() {
 
 // For middleware usage (with request cookies)
 export const createMiddlewareClient = (request?: NextRequest) => {
+  // Get environment variables at runtime
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  
   // Validate environment variables before creating client
   if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error(
@@ -90,6 +89,10 @@ export const createMiddlewareClient = (request?: NextRequest) => {
 
 // Create service role client for bypassing RLS (for admin operations)
 export const createServiceRoleClient = () => {
+  // Get environment variables at runtime
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  
   // Validate environment variables before creating client
   if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error(

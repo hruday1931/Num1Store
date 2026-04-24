@@ -2,9 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createServiceRoleClient } from '@/utils/supabase/server';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-
 interface CartItem {
   product_id: string;
   quantity: number;
@@ -71,6 +68,17 @@ export async function POST(request: NextRequest) {
     
     // Extract the token
     const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+    
+    // Get environment variables at runtime
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    
+    if (!supabaseUrl || !supabaseAnonKey) {
+      return NextResponse.json(
+        { error: 'Server configuration error' },
+        { status: 500 }
+      );
+    }
     
     // Create a Supabase client with the Bearer token for authentication
     console.log('COD Order API: Creating Supabase client with Bearer token...');

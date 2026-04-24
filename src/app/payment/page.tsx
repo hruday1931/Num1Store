@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/auth-context';
@@ -19,7 +19,7 @@ declare global {
   }
 }
 
-export default function PaymentPage() {
+function PaymentContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useAuth();
@@ -352,5 +352,27 @@ export default function PaymentPage() {
 
       <Footer />
     </div>
+  );
+}
+
+export default function PaymentPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-red-50">
+        <Header />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="flex items-center justify-center min-h-[400px]">
+            <div className="text-center">
+              <Loader2 className="h-12 w-12 animate-spin text-green-600 mx-auto mb-4" />
+              <h2 className="text-xl font-semibold text-gray-900">Loading Payment Gateway...</h2>
+              <p className="text-gray-600 mt-2">Please wait while we prepare your payment</p>
+            </div>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    }>
+      <PaymentContent />
+    </Suspense>
   );
 }

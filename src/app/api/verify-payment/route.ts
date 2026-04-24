@@ -51,10 +51,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Get environment variables at runtime
+    const razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET;
+    
+    if (!razorpayKeySecret) {
+      console.error('Missing Razorpay key secret');
+      return NextResponse.json(
+        { error: 'Payment service configuration error' },
+        { status: 500 }
+      );
+    }
+    
     // Verify signature
     const body = `${razorpay_order_id}|${razorpay_payment_id}`;
     const expectedSignature = crypto
-      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET!)
+      .createHmac('sha256', razorpayKeySecret)
       .update(body.toString())
       .digest('hex');
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts';
 import { Header } from '@/components/layout/header';
@@ -8,7 +8,7 @@ import { Footer } from '@/components/layout/footer';
 import { Button } from '@/components/ui/button';
 import { XCircle, CreditCard, RefreshCw, ArrowRight, ShoppingBag, AlertCircle } from 'lucide-react';
 
-export default function OrderFailedPage() {
+function OrderFailedContent() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -243,5 +243,24 @@ export default function OrderFailedPage() {
       </main>
       <Footer />
     </div>
+  );
+}
+
+export default function OrderFailedPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex flex-col">
+        <Header />
+        <main className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Loading...</p>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    }>
+      <OrderFailedContent />
+    </Suspense>
   );
 }

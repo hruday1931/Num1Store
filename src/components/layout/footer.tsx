@@ -51,20 +51,16 @@ export function Footer() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        const data = await safeFetch('/api/categories');
-        if (data.categories) {
-          setCategories(data.categories);
-        }
-      } catch (error) {
-        console.error('Error fetching categories:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchCategories();
+    // Use static categories for now - remove API call to prevent console errors
+    setCategories([
+      { id: '1', name: 'Electronics', slug: 'electronics', description: 'Gadgets and devices', icon_name: 'Laptop' },
+      { id: '2', name: 'Fashion', slug: 'fashion', description: 'Clothing and accessories', icon_name: 'Shirt' },
+      { id: '3', name: 'Home', slug: 'home', description: 'Home and living', icon_name: 'Home' },
+      { id: '4', name: 'Beauty', slug: 'beauty', description: 'Beauty and health', icon_name: 'Sparkles' },
+      { id: '5', name: 'Sports', slug: 'sports', description: 'Sports and fitness', icon_name: 'Package' },
+      { id: '6', name: 'Gaming', slug: 'gaming', description: 'Games and consoles', icon_name: 'Gamepad2' },
+    ]);
+    setLoading(false);
   }, []);
 
   const renderCategoryIcon = (iconName: string) => {

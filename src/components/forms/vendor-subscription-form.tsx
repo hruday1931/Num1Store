@@ -138,9 +138,16 @@ export function VendorSubscriptionForm({ onSuccess, onError }: VendorSubscriptio
       console.log('Starting database updates after successful payment...');
       
       // Create untyped supabase client to bypass Database type issues
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      
+      if (!supabaseUrl || !supabaseAnonKey) {
+        throw new Error('Supabase environment variables are missing');
+      }
+      
       const untypedSupabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+        supabaseUrl,
+        supabaseAnonKey
       );
 
       // Verify user ID is valid

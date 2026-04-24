@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/utils/supabase/server';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
-import Razorpay from 'razorpay';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const Razorpay = require('razorpay');
 
 interface CartItem {
   id: string;
@@ -71,6 +67,17 @@ export async function POST(request: NextRequest) {
     
     // Extract the token
     const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+    
+    // Get environment variables at runtime
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    
+    if (!supabaseUrl || !supabaseAnonKey) {
+      return NextResponse.json(
+        { error: 'Server configuration error' },
+        { status: 500 }
+      );
+    }
     
     // Create a Supabase client with the Bearer token for authentication
     console.log('Checkout API: Creating Supabase client with Bearer token...');
@@ -297,9 +304,21 @@ export async function POST(request: NextRequest) {
     console.log('=== END RAZORPAY DEBUG ===');
     
     try {
+      // Get environment variables at runtime
+      const razorpayKeyId = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
+      const razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET;
+      
+      if (!razorpayKeyId || !razorpayKeySecret) {
+        console.error('Missing Razorpay environment variables');
+        return NextResponse.json(
+          { error: 'Payment service configuration error' },
+          { status: 500 }
+        );
+      }
+      
       const razorpay = new Razorpay({
-        key_id: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID!,
-        key_secret: process.env.RAZORPAY_KEY_SECRET!,
+        key_id: razorpayKeyId,
+        key_secret: razorpayKeySecret,
       });
       console.log('Razorpay initialized successfully');
       
