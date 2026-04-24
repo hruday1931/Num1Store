@@ -30,6 +30,8 @@ export async function POST(request: NextRequest) {
 
     // Validate Razorpay credentials
     console.log('=== ENVIRONMENT VARIABLES DEBUG ===');
+    console.log('Razorpay Key ID:', process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID);
+    console.log('Razorpay Secret Present:', !!process.env.RAZORPAY_KEY_SECRET);
     console.log('NEXT_PUBLIC_RAZORPAY_KEY_ID exists:', !!process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID);
     console.log('RAZORPAY_KEY_SECRET exists:', !!process.env.RAZORPAY_KEY_SECRET);
     console.log('NEXT_PUBLIC_RAZORPAY_KEY_ID value:', process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID?.substring(0, 10) + '...');
@@ -43,10 +45,13 @@ export async function POST(request: NextRequest) {
         keyIdPrefix: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID?.substring(0, 10) + '...',
         keySecretLength: process.env.RAZORPAY_KEY_SECRET?.length
       });
-      return NextResponse.json(
-        { success: false, error: 'Payment service configuration error' },
-        { status: 500 }
-      );
+      
+      // Throw descriptive error for missing credentials
+      const missingVars = [];
+      if (!process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID) missingVars.push('NEXT_PUBLIC_RAZORPAY_KEY_ID');
+      if (!process.env.RAZORPAY_KEY_SECRET) missingVars.push('RAZORPAY_KEY_SECRET');
+      
+      throw new Error(`Missing Razorpay credentials: ${missingVars.join(', ')}. Please check your Vercel environment variables.`);
     }
 
     // Get the Authorization header from the request
@@ -310,10 +315,11 @@ export async function POST(request: NextRequest) {
       
       if (!razorpayKeyId || !razorpayKeySecret) {
         console.error('Missing Razorpay environment variables');
-        return NextResponse.json(
-          { error: 'Payment service configuration error' },
-          { status: 500 }
-        );
+        const missingVars = [];
+        if (!razorpayKeyId) missingVars.push('NEXT_PUBLIC_RAZORPAY_KEY_ID');
+        if (!razorpayKeySecret) missingVars.push('RAZORPAY_KEY_SECRET');
+        
+        throw new Error(`Missing Razorpay credentials during initialization: ${missingVars.join(', ')}. Please check your Vercel environment variables.`);
       }
       
       const razorpay = new Razorpay({
