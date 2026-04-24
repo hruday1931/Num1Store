@@ -15,6 +15,11 @@ interface CartItem {
 export async function POST(request: NextRequest) {
   console.log('=== NEW CHECKOUT API VERSION - DEBUG ===');
   
+  // Check for missing Razorpay keys at the very top
+  if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+    return Response.json({ error: 'Keys missing on server' }, { status: 500 });
+  }
+  
   // Debug environment variables at the very beginning
   console.log('DEBUG: KEY_ID exists?', !!process.env.RAZORPAY_KEY_ID);
   console.log('DEBUG: SECRET exists?', !!process.env.RAZORPAY_KEY_SECRET);
