@@ -14,6 +14,11 @@ interface CartItem {
 
 export async function POST(request: NextRequest) {
   console.log('=== NEW CHECKOUT API VERSION - DEBUG ===');
+  
+  // Debug environment variables at the very beginning
+  console.log('DEBUG: KEY_ID exists?', !!process.env.RAZORPAY_KEY_ID);
+  console.log('DEBUG: SECRET exists?', !!process.env.RAZORPAY_KEY_SECRET);
+  
   try {
     const { amount, currency, shippingAddress } = await request.json();
 
@@ -30,28 +35,24 @@ export async function POST(request: NextRequest) {
 
     // Validate Razorpay credentials
     console.log('=== ENVIRONMENT VARIABLES DEBUG ===');
-    console.log('Razorpay Key ID:', process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID);
+    console.log('Razorpay Key ID:', process.env.RAZORPAY_KEY_ID);
     console.log('Razorpay Secret Present:', !!process.env.RAZORPAY_KEY_SECRET);
-    console.log('NEXT_PUBLIC_RAZORPAY_KEY_ID exists:', !!process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID);
+    console.log('RAZORPAY_KEY_ID exists:', !!process.env.RAZORPAY_KEY_ID);
     console.log('RAZORPAY_KEY_SECRET exists:', !!process.env.RAZORPAY_KEY_SECRET);
-    console.log('NEXT_PUBLIC_RAZORPAY_KEY_ID value:', process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID?.substring(0, 10) + '...');
+    console.log('RAZORPAY_KEY_ID value:', process.env.RAZORPAY_KEY_ID?.substring(0, 10) + '...');
     console.log('RAZORPAY_KEY_SECRET length:', process.env.RAZORPAY_KEY_SECRET?.length);
     console.log('=== END ENVIRONMENT VARIABLES DEBUG ===');
     
-    if (!process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+    if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
       console.error('Razorpay credentials missing:', {
-        hasKeyId: !!process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        hasKeyId: !!process.env.RAZORPAY_KEY_ID,
         hasKeySecret: !!process.env.RAZORPAY_KEY_SECRET,
-        keyIdPrefix: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID?.substring(0, 10) + '...',
+        keyIdPrefix: process.env.RAZORPAY_KEY_ID?.substring(0, 10) + '...',
         keySecretLength: process.env.RAZORPAY_KEY_SECRET?.length
       });
       
-      // Throw descriptive error for missing credentials
-      const missingVars = [];
-      if (!process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID) missingVars.push('NEXT_PUBLIC_RAZORPAY_KEY_ID');
-      if (!process.env.RAZORPAY_KEY_SECRET) missingVars.push('RAZORPAY_KEY_SECRET');
-      
-      throw new Error(`Missing Razorpay credentials: ${missingVars.join(', ')}. Please check your Vercel environment variables.`);
+      // Return error response for missing credentials
+      return NextResponse.json({ error: "Missing API Keys" }, { status: 500 });
     }
 
     // Get the Authorization header from the request
@@ -300,9 +301,9 @@ export async function POST(request: NextRequest) {
     console.log('Order created successfully:', (order as any)?.id);
 
     // Initialize Razorpay
-    console.log('Initializing Razorpay with key ID:', process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID?.substring(0, 10) + '...');
+    console.log('Initializing Razorpay with key ID:', process.env.RAZORPAY_KEY_ID?.substring(0, 10) + '...');
     console.log('=== RAZORPAY INITIALIZATION DEBUG ===');
-    console.log('Razorpay Key ID exists:', !!process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID);
+    console.log('Razorpay Key ID exists:', !!process.env.RAZORPAY_KEY_ID);
     console.log('Razorpay Key Secret exists:', !!process.env.RAZORPAY_KEY_SECRET);
     console.log('Order amount:', amount);
     console.log('Order currency:', currency);
@@ -310,21 +311,18 @@ export async function POST(request: NextRequest) {
     
     try {
       // Get environment variables at runtime
-      const razorpayKeyId = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
+      const razorpayKeyId = process.env.RAZORPAY_KEY_ID;
       const razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET;
       
       if (!razorpayKeyId || !razorpayKeySecret) {
         console.error('Missing Razorpay environment variables');
-        const missingVars = [];
-        if (!razorpayKeyId) missingVars.push('NEXT_PUBLIC_RAZORPAY_KEY_ID');
-        if (!razorpayKeySecret) missingVars.push('RAZORPAY_KEY_SECRET');
         
-        throw new Error(`Missing Razorpay credentials during initialization: ${missingVars.join(', ')}. Please check your Vercel environment variables.`);
+        return NextResponse.json({ error: "Missing API Keys" }, { status: 500 });
       }
       
       const razorpay = new Razorpay({
-        key_id: razorpayKeyId,
-        key_secret: razorpayKeySecret,
+        key_id: process.env.RAZORPAY_KEY_ID,
+        key_secret: process.env.RAZORPAY_KEY_SECRET,
       });
       console.log('Razorpay initialized successfully');
       
@@ -360,8 +358,8 @@ export async function POST(request: NextRequest) {
         amountType: typeof options.amount,
         currency: options.currency,
         receipt: options.receipt,
-        keyId: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID?.substring(0, 10) + '...',
-        hasKeyId: !!process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        keyId: process.env.RAZORPAY_KEY_ID?.substring(0, 10) + '...',
+        hasKeyId: !!process.env.RAZORPAY_KEY_ID,
         hasKeySecret: !!process.env.RAZORPAY_KEY_SECRET
       });
 
