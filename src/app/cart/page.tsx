@@ -592,19 +592,19 @@ export default function CartPage() {
                               onClick={() => updateQuantity(item.id, item.quantity - 1)}
                               size="sm"
                               variant="outline"
-                              className="p-1 h-8 w-8 border-2 border-gray-400 text-black hover:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
+                              className="h-8 w-8 p-0 border-2 border-gray-300 bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-400 disabled:text-gray-300 disabled:cursor-not-allowed flex items-center justify-center"
                               disabled={item.quantity <= 1}
                             >
-                              <Minus className="w-3 h-3" />
+                              <Minus className="w-4 h-4" />
                             </Button>
-                            <span className="w-12 text-center font-medium text-black">{item.quantity}</span>
+                            <span className="w-12 text-center font-medium text-gray-900">{item.quantity}</span>
                             <Button
                               onClick={() => updateQuantity(item.id, item.quantity + 1)}
                               size="sm"
                               variant="outline"
-                              className="p-1 h-8 w-8 border-2 border-gray-400 text-black hover:bg-gray-100"
+                              className="h-8 w-8 p-0 border-2 border-gray-300 bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-400 flex items-center justify-center"
                             >
-                              <Plus className="w-3 h-3" />
+                              <Plus className="w-4 h-4" />
                             </Button>
                           </div>
                           
