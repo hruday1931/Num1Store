@@ -13,20 +13,24 @@ interface CartItem {
 }
 
 export async function POST(request: NextRequest) {
-  console.log('=== NEW CHECKOUT API VERSION - DEBUG ===');
-  
-  // Check for missing Razorpay keys at the very top
-  if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
-    return Response.json({ error: 'Keys missing on server' }, { status: 500 });
-  }
-  
-  // Debug environment variables at the very beginning
-  console.log('DEBUG: KEY_ID exists?', !!process.env.RAZORPAY_KEY_ID);
-  console.log('DEBUG: SECRET exists?', !!process.env.RAZORPAY_KEY_SECRET);
-  
+  // Add a wrapper to catch all errors and ensure proper response
   try {
-    const { amount, currency, shippingAddress } = await request.json();
-
+    console.log('=== NEW CHECKOUT API VERSION - DEBUG ===');
+    console.log('API called at:', new Date().toISOString());
+    console.log('Request method:', request.method);
+    console.log('Request URL:', request.url);
+    console.log('Request headers:', Object.fromEntries(request.headers.entries()));
+    
+    try {
+    // Read the body immediately to avoid "Body already read" errors
+    const body = await request.json();
+    
+    // Add the specific debugging logs requested
+    console.log("Request Body:", body);
+    console.log("Razorpay Secret:", process.env.RAZORPAY_KEY_SECRET);
+    
+    const { amount, currency, shippingAddress } = body;
+    
     // Validate required fields
     if (!amount || !currency) {
       return NextResponse.json(
@@ -35,24 +39,82 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Note: shipping address validation is now handled on frontend
-    // We don't need shipping address for order creation anymore
+    // Validate amount is a proper number
+    const parsedAmount = Number(amount);
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid amount. Amount must be a positive number.' },
+        { status: 400 }
+      );
+    }
 
+    console.log('=== AMOUNT VALIDATION DEBUG ===');
+    console.log('Original amount:', amount);
+    console.log('Parsed amount:', parsedAmount);
+    console.log('Amount type:', typeof amount);
+    console.log('Is valid number:', !isNaN(parsedAmount) && parsedAmount > 0);
+    console.log('=== END AMOUNT VALIDATION DEBUG ===');
+    
+    // Check for missing or placeholder Razorpay keys
+    const keyId = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
+    const keySecret = process.env.RAZORPAY_KEY_SECRET;
+    
+    console.log('=== RAZORPAY CREDENTIALS CHECK ===');
+    console.log('Key ID exists:', !!keyId);
+    console.log('Key Secret exists:', !!keySecret);
+    console.log('Key ID value:', keyId?.substring(0, 10) + '...');
+    console.log('Key ID is placeholder:', keyId?.includes('your_razorpay_key_id_here'));
+    console.log('Key Secret is placeholder:', keySecret?.includes('your_razorpay_key_secret_here'));
+    console.log('=== END CREDENTIALS CHECK ===');
+    
+    if (!keyId || !keySecret || 
+        keyId.includes('your_razorpay_key_id_here') || 
+        keySecret.includes('your_razorpay_key_secret_here')) {
+      console.log('Development mode: Razorpay credentials not configured, returning mock response');
+      const timestamp = Date.now();
+      return NextResponse.json({
+        success: true,
+        order: {
+          id: `dev_order_${timestamp}`,
+          amount: parsedAmount,
+          currency: currency,
+          receipt: `dev_receipt_${timestamp}`,
+          notes: { message: 'Development mode - mock order' }
+        },
+        development: true,
+        message: 'This is a mock order for development. Configure Razorpay credentials for production.',
+        timestamp: timestamp,
+        api_version: 'v2-fixed'
+      }, {
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
+      });
+    }
+    
     // Validate Razorpay credentials
     console.log('=== ENVIRONMENT VARIABLES DEBUG ===');
-    console.log('Razorpay Key ID:', process.env.RAZORPAY_KEY_ID);
+    console.log('Razorpay Key ID:', process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID);
     console.log('Razorpay Secret Present:', !!process.env.RAZORPAY_KEY_SECRET);
-    console.log('RAZORPAY_KEY_ID exists:', !!process.env.RAZORPAY_KEY_ID);
+    console.log('RAZORPAY_KEY_ID exists:', !!process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID);
     console.log('RAZORPAY_KEY_SECRET exists:', !!process.env.RAZORPAY_KEY_SECRET);
-    console.log('RAZORPAY_KEY_ID value:', process.env.RAZORPAY_KEY_ID?.substring(0, 10) + '...');
+    console.log('RAZORPAY_KEY_ID value:', process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID?.substring(0, 10) + '...');
     console.log('RAZORPAY_KEY_SECRET length:', process.env.RAZORPAY_KEY_SECRET?.length);
     console.log('=== END ENVIRONMENT VARIABLES DEBUG ===');
     
-    if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+    // Explicit check for Razorpay key secret
+    if (!process.env.RAZORPAY_KEY_SECRET) {
+      console.error('❌ RAZORPAY_KEY_SECRET is undefined or not loaded');
+      throw new Error('RAZORPAY_KEY_SECRET environment variable is not configured. Please check your .env file.');
+    }
+    
+    if (!process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
       console.error('Razorpay credentials missing:', {
-        hasKeyId: !!process.env.RAZORPAY_KEY_ID,
+        hasKeyId: !!process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
         hasKeySecret: !!process.env.RAZORPAY_KEY_SECRET,
-        keyIdPrefix: process.env.RAZORPAY_KEY_ID?.substring(0, 10) + '...',
+        keyIdPrefix: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID?.substring(0, 10) + '...',
         keySecretLength: process.env.RAZORPAY_KEY_SECRET?.length
       });
       
@@ -239,7 +301,7 @@ export async function POST(request: NextRequest) {
     console.log(`Cart items count: ${cartItemsWithProducts.length}`);
     console.log(`Calculated cart total: ₹${cartTotal}`);
     console.log(`Expected amount (paise): ${Math.round(cartTotal * 100)}`);
-    console.log(`Received amount (paise): ${amount}`);
+    console.log(`Received amount (paise): ${parsedAmount}`);
     console.log(`=== END CART TOTAL DEBUG ===`);
 
     // Verify the amount matches (convert from paise to rupees for comparison)
@@ -247,21 +309,21 @@ export async function POST(request: NextRequest) {
     console.log('=== AMOUNT VALIDATION DEBUG ===');
     console.log('Cart total (rupees):', cartTotal);
     console.log('Expected amount (paise):', expectedAmount);
-    console.log('Received amount (paise):', amount);
-    console.log('Amount type:', typeof amount);
+    console.log('Received amount (paise):', parsedAmount);
+    console.log('Amount type:', typeof parsedAmount);
     console.log('Expected amount type:', typeof expectedAmount);
     console.log('=== END AMOUNT VALIDATION DEBUG ===');
     
-    if (amount !== expectedAmount) {
-      console.error('Amount mismatch:', { expected: expectedAmount, received: amount, cartTotal });
+    if (parsedAmount !== expectedAmount) {
+      console.error('Amount mismatch:', { expected: expectedAmount, received: parsedAmount, cartTotal });
       return NextResponse.json(
-        { success: false, error: `Cart total mismatch. Expected: ₹${(expectedAmount/100).toFixed(2)}, Received: ₹${(amount/100).toFixed(2)}. Please refresh and try again.` },
+        { success: false, error: `Cart total mismatch. Expected: ₹${(expectedAmount/100).toFixed(2)}, Received: ₹${(parsedAmount/100).toFixed(2)}. Please refresh and try again.` },
         { status: 400 }
       );
     }
 
     // Create order with new schema: customer_id and shipping_address columns
-    const totalAmount = amount / 100; // Convert from paise to rupees
+    const totalAmount = parsedAmount / 100; // Convert from paise to rupees
     console.log('Checkout API - Creating order with:', {
       customer_id: user.id,
       total_amount: totalAmount,
@@ -306,70 +368,79 @@ export async function POST(request: NextRequest) {
     console.log('Order created successfully:', (order as any)?.id);
 
     // Initialize Razorpay
-    console.log('Initializing Razorpay with key ID:', process.env.RAZORPAY_KEY_ID?.substring(0, 10) + '...');
+    console.log('Initializing Razorpay with key ID:', process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID?.substring(0, 10) + '...');
     console.log('=== RAZORPAY INITIALIZATION DEBUG ===');
-    console.log('Razorpay Key ID exists:', !!process.env.RAZORPAY_KEY_ID);
+    console.log('Razorpay Key ID exists:', !!process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID);
     console.log('Razorpay Key Secret exists:', !!process.env.RAZORPAY_KEY_SECRET);
     console.log('Order amount:', amount);
     console.log('Order currency:', currency);
     console.log('=== END RAZORPAY DEBUG ===');
     
-    try {
-      // Get environment variables at runtime
-      const razorpayKeyId = process.env.RAZORPAY_KEY_ID;
-      const razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET;
-      
-      if (!razorpayKeyId || !razorpayKeySecret) {
-        console.error('Missing Razorpay environment variables');
-        
-        return NextResponse.json({ error: "Missing API Keys" }, { status: 500 });
-      }
-      
-      const razorpay = new Razorpay({
-        key_id: process.env.RAZORPAY_KEY_ID,
-        key_secret: process.env.RAZORPAY_KEY_SECRET,
-      });
-      console.log('Razorpay initialized successfully');
-      
-      // Razorpay instance creation is sufficient to test credentials
-      console.log('Razorpay credentials validated successfully');
+    // Get environment variables at runtime
+    const razorpayKeyId = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
+    const razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET;
+    
+    if (!razorpayKeyId || !razorpayKeySecret) {
+      console.error('Missing Razorpay environment variables');
+      return NextResponse.json({ error: "Missing API Keys" }, { status: 500 });
+    }
+    
+    const razorpay = new Razorpay({
+      key_id: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+      key_secret: process.env.RAZORPAY_KEY_SECRET,
+    });
+    console.log('Razorpay initialized successfully');
+    
+    // Razorpay instance creation is sufficient to test credentials
+    console.log('Razorpay credentials validated successfully');
 
-      // Create Razorpay order with proper integer amount in paise
-      // The amount coming from frontend is already in paise, but ensure it's an integer
-      const amountInPaise = Math.round(Number(amount)); // Ensure amount is integer (already in paise)
-      if (amountInPaise < 100) {
-        console.error('Amount too small for Razorpay:', amountInPaise);
+    // Create Razorpay order with proper error handling
+    try {
+      console.log('=== CREATING RAZORPAY ORDER ===');
+      console.log('Amount:', parsedAmount);
+      console.log('Currency:', currency);
+      console.log('Amount type:', typeof parsedAmount);
+      console.log('=== END RAZORPAY ORDER DEBUG ===');
+      
+      // Validate amount is in paise and is a number
+      const amountInPaise = Math.round(parsedAmount);
+      console.log('=== AMOUNT VALIDATION ===');
+      console.log('Original amount:', parsedAmount);
+      console.log('Amount type:', typeof parsedAmount);
+      console.log('Amount after rounding:', amountInPaise);
+      console.log('Is NaN:', isNaN(amountInPaise));
+      console.log('Is minimum amount:', amountInPaise < 100);
+      console.log('=== END AMOUNT VALIDATION ===');
+      
+      if (isNaN(amountInPaise) || amountInPaise < 100) {
+        console.error('Invalid amount for Razorpay:', parsedAmount);
         return NextResponse.json(
-          { success: false, error: 'Amount too small for payment. Minimum amount is ₹1.' },
+          { success: false, error: 'Invalid amount. Minimum amount is ₹1 (100 paise).' },
           { status: 400 }
         );
       }
       
       const options = {
-        amount: amountInPaise, // Must be integer in paise
-        currency: "INR", // Explicitly set to INR
+        amount: amountInPaise,
+        currency: currency || 'INR',
         receipt: `rcpt_${(order as any)?.id?.slice(-8)}_${Date.now().toString().slice(-6)}`,
         notes: {
           order_id: (order as any)?.id,
           user_id: user.id,
           items_count: userCartItems.length
         },
-        // Ensure all payment methods are available
         payment_capture: 1
       };
 
-      console.log('Creating Razorpay order with options:', {
-        amount: options.amount,
-        amountType: typeof options.amount,
-        currency: options.currency,
-        receipt: options.receipt,
-        keyId: process.env.RAZORPAY_KEY_ID?.substring(0, 10) + '...',
-        hasKeyId: !!process.env.RAZORPAY_KEY_ID,
-        hasKeySecret: !!process.env.RAZORPAY_KEY_SECRET
-      });
-
+      console.log('Razorpay order options:', JSON.stringify(options, null, 2));
+      
       const razorpayOrder = await razorpay.orders.create(options);
-      console.log('Razorpay order created successfully:', razorpayOrder.id);
+      console.log('=== RAZORPAY ORDER DEBUG ===');
+      console.log('ORDER_DATA:', order);
+      console.log("Razorpay Order Created:", razorpayOrder);
+      console.log('✅ Razorpay order created successfully:', razorpayOrder.id);
+      console.log("RAZORPAY_ORDER:", razorpayOrder);
+      console.log('Razorpay Order Response:', razorpayOrder);
 
       return NextResponse.json({
         success: true,
@@ -382,12 +453,18 @@ export async function POST(request: NextRequest) {
         }
       });
     } catch (razorpayError) {
-      console.error('=== RAZORPAY ERROR DEBUG ===');
-      console.error('Full Razorpay Error:', razorpayError);
-      console.error('Razorpay Error Details:', razorpayError);
-      console.error('Full Razorpay error:', JSON.stringify(razorpayError, null, 2));
-      console.error('Error type:', typeof razorpayError);
-      console.error('Error constructor:', razorpayError?.constructor?.name);
+      console.error('❌ RAZORPAY ORDER CREATION FAILED:');
+      console.error('Error:', razorpayError);
+      console.error('Error message:', razorpayError instanceof Error ? razorpayError.message : 'Unknown error');
+      console.error('Error stack:', razorpayError instanceof Error ? razorpayError.stack : 'No stack');
+      
+      // Additional debugging for credential issues
+      console.error('=== RAZORPAY CREDENTIALS DEBUG ===');
+      console.error('RAZORPAY_KEY_ID exists:', !!process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID);
+      console.error('RAZORPAY_KEY_SECRET exists:', !!process.env.RAZORPAY_KEY_SECRET);
+      console.error('RAZORPAY_KEY_ID value:', process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID);
+      console.error('RAZORPAY_KEY_SECRET length:', process.env.RAZORPAY_KEY_SECRET?.length);
+      console.error('=== END RAZORPAY CREDENTIALS DEBUG ===');
       
       if (razorpayError && typeof razorpayError === 'object') {
         console.error('Error keys:', Object.keys(razorpayError));
@@ -396,30 +473,11 @@ export async function POST(request: NextRequest) {
         });
       }
       
-      // Extract more detailed error information
-      let errorMessage = 'Unknown Razorpay error';
-      let errorDetails = '';
-      
-      if (razorpayError instanceof Error) {
-        errorMessage = razorpayError.message;
-        errorDetails = razorpayError.stack || '';
-      } else if (typeof razorpayError === 'string') {
-        errorMessage = razorpayError;
-      } else if (razorpayError && typeof razorpayError === 'object') {
-        // Try to extract common error properties
-        errorMessage = (razorpayError as any).message || (razorpayError as any).error || (razorpayError as any).description || 'Unknown Razorpay error';
-        errorDetails = JSON.stringify(razorpayError, null, 2);
-      }
-      
-      console.error('Final Razorpay error message:', errorMessage);
-      console.error('Final Razorpay error details:', errorDetails);
-      console.error('=== END RAZORPAY ERROR DEBUG ===');
-      
       return NextResponse.json(
         { 
           success: false, 
-          error: `Payment service error: ${errorMessage}`,
-          details: errorDetails
+          error: `Failed to create payment order: ${razorpayError instanceof Error ? razorpayError.message : 'Unknown error'}`,
+          details: razorpayError
         },
         { status: 500 }
       );
@@ -432,6 +490,8 @@ export async function POST(request: NextRequest) {
     console.error('Error constructor:', error?.constructor?.name);
     console.error('Error message:', error instanceof Error ? error.message : 'No error message');
     console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    console.error('Request method:', request.method);
+    console.error('Request URL:', request.url);
     
     if (error && typeof error === 'object') {
       console.error('Error keys:', Object.keys(error));
@@ -453,7 +513,15 @@ export async function POST(request: NextRequest) {
     }
     
     return NextResponse.json(
-      { success: false, error: `Failed to create order: ${errorMessage}` },
+        { success: false, error: `Failed to create order: ${errorMessage}` },
+        { status: 500 }
+      );
+    }
+  } catch (outerError) {
+    console.error('=== OUTER CATCH BLOCK - UNHANDLED ERROR ===');
+    console.error('Outer error:', outerError);
+    return NextResponse.json(
+      { success: false, error: `Unhandled server error: ${outerError instanceof Error ? outerError.message : 'Unknown error'}` },
       { status: 500 }
     );
   }

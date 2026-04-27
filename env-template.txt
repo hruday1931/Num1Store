@@ -1,0 +1,15 @@
+# Num1Store Environment Variables Template
+# Copy this file to .env.local and fill in your actual values
+
+# Razorpay Configuration (keep these as-is for testing)
+NEXT_PUBLIC_RAZORPAY_KEY_ID=rzp_test_ShFpd734TB7CiW
+RAZORPAY_KEY_SECRET=9UXMirZAK4FNRoX0lbcv8zA8
+
+# Supabase Configuration - REPLACE THESE WITH YOUR ACTUAL VALUES
+# Get these from: https://supabase.com/dashboard -> Your Project -> Settings -> API
+NEXT_PUBLIC_SUPABASE_URL=https://your-actual-project-id.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-actual-anon-key-here
+
+# Example of what real values look like:
+# NEXT_PUBLIC_SUPABASE_URL=https://abcdefg12345.supabase.co
+# NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFiY2RlZmdoaWprbG1ub3BxcnN0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE2MzQwNzQwMDAsImV4cCI6MTk0OTY1MDAwMH0.some-signature

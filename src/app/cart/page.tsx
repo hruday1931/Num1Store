@@ -13,20 +13,21 @@ import { useToast } from '@/contexts/toast-context';
 import { useAddresses } from '@/hooks/use-addresses';
 import { AddressForm } from '@/components/forms/address-form';
 import { AddressData } from '@/types';
-import { Minus, Plus, ShoppingCart, ArrowRight, MapPin, CreditCard, Truck } from 'lucide-react';
+import { ShoppingCart, ArrowRight, MapPin, CreditCard, Truck } from 'lucide-react';
 import { safeFetch } from '@/utils/fetch-wrapper';
 import { supabaseClient } from '@/utils/supabase/client';
 
 export default function CartPage() {
   const { user, session, loading } = useAuth();
   const supabase = supabaseClient();
-  const { cartItems, loading: cartLoading, updateQuantity, removeFromCart, cartTotal, clearCart, fetchCartItems } = useCart();
+  const { cartItems, loading: cartLoading, updateQuantity, removeFromCart, removeItem, cartTotal, clearCart, fetchCartItems } = useCart();
   const router = useRouter();
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [selectedAddress, setSelectedAddress] = useState<AddressData | null>(null);
   const [showAddressForm, setShowAddressForm] = useState(false);
   const [isSavingAddress, setIsSavingAddress] = useState(false);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'online' | 'cod'>('online');
+  const [paymentMethodError, setPaymentMethodError] = useState<string | null>(null);
   const { success, error: showError } = useToast();
   const { addresses, loading: addressesLoading, saveAddress } = useAddresses();
   const [razorpayLoaded, setRazorpayLoaded] = useState(false);
@@ -84,6 +85,17 @@ export default function CartPage() {
       showError('Failed to save address. Please try again.');
     } finally {
       setIsSavingAddress(false);
+    }
+  };
+
+  const handlePaymentMethodChange = (method: 'online' | 'cod') => {
+    try {
+      setPaymentMethodError(null);
+      setSelectedPaymentMethod(method);
+      console.log('Payment method changed to:', method);
+    } catch (error) {
+      console.error('Error changing payment method:', error);
+      setPaymentMethodError('Failed to change payment method. Please try again.');
     }
   };
 
@@ -239,6 +251,13 @@ export default function CartPage() {
     }
 
     setIsCheckingOut(true);
+    console.log('=== CHECKOUT STARTED ===');
+    console.log('Cart items count:', cartItems.length);
+    console.log('Cart total:', cartTotal);
+    console.log('Selected address:', selectedAddress);
+    console.log('User authenticated:', !!user);
+    console.log('=== END CHECKOUT START ===');
+    
     try {
       // Force refresh cart data before checkout
       console.log('=== FORCE REFRESH CART DATA BEFORE CHECKOUT ===');
@@ -289,6 +308,10 @@ export default function CartPage() {
       }
       
       // Set up headers with Bearer token
+      if (!freshSession.access_token) {
+        throw new Error('No access token available. Please sign in again.');
+      }
+      
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${freshSession.access_token}`,
@@ -298,7 +321,7 @@ export default function CartPage() {
       console.log('Checkout: Session user ID:', freshSession.user.id);
       console.log('Checkout: Access token (first 20 chars):', freshSession.access_token?.substring(0, 20) + '...');
       console.log('Checkout: Access token length:', freshSession.access_token?.length);
-      console.log('Checkout: Session expires at:', new Date(freshSession.expires_at! * 1000).toISOString());
+      console.log('Checkout: Session expires at:', freshSession.expires_at ? new Date(freshSession.expires_at * 1000).toISOString() : 'Not set');
       console.log('Checkout: Current time:', new Date().toISOString());
       
       const data = await safeFetch('/api/checkout', {
@@ -317,19 +340,44 @@ export default function CartPage() {
         }),
       });
       
+      console.log('=== CHECKOUT API RESPONSE ===');
+      console.log('Response data:', data);
+      console.log('Response type:', typeof data);
+      console.log('Success:', data?.success);
+      console.log('Order data:', data?.order);
+      console.log('=== END CHECKOUT API RESPONSE ===');
+      
       // Check if data is a valid object before accessing properties
       if (data && typeof data === 'object' && data.success) {
+        // Check if this is development mode
+        if (data.development) {
+          console.log('🚀 DEVELOPMENT MODE: Using mock order');
+          console.log('Mock order ID:', data.order?.id);
+          console.log('Message:', data.message);
+        }
+        
         // Validate required Razorpay options
         if (!process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID) {
+          console.error('❌ Missing Razorpay key ID');
           showError('Payment service configuration error. Missing Razorpay key.');
           return;
         }
         
         if (!data.order?.amount || !data.order?.currency || !data.order?.id) {
-          console.error('Missing order data:', data.order);
+          console.error('❌ Missing order data:', data.order);
           showError('Invalid order data received. Please try again.');
           return;
         }
+
+        // Debug: Log the order data received from API
+        console.log('=== FRONTEND RAZORPAY DEBUG ===');
+        console.log('Order data from API:', data.order);
+        console.log('Razorpay Key ID exists:', !!process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID);
+        console.log('Razorpay Key ID value:', process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID?.substring(0, 10) + '...');
+        console.log('Order ID:', data.order.id);
+        console.log('Amount:', data.order.amount);
+        console.log('Currency:', data.order.currency);
+        console.log('=== END FRONTEND RAZORPAY DEBUG ===');
 
         // Initialize Razorpay
         const options = {
@@ -340,6 +388,9 @@ export default function CartPage() {
           description: 'Purchase from Num1Store',
           order_id: data.order.id,
           handler: async function (response: any) {
+            console.log('=== RAZORPAY PAYMENT SUCCESS ===');
+            console.log('Payment response:', response);
+            console.log('=== END RAZORPAY PAYMENT SUCCESS ===');
             // Verify payment
             const verifyHeaders: Record<string, string> = {
               'Content-Type': 'application/json',
@@ -412,24 +463,51 @@ export default function CartPage() {
         }
 
         try {
-          const razorpay = new (window as any).Razorpay(options);
-          
-          // Add error handling for payment failures
-          razorpay.on('payment.failed', function (response: any) {
-            console.error('Payment failed:', response.error);
-            showError(`Payment failed: ${response.error.description || 'Unknown error'}`);
+          console.log('🚀 Initializing Razorpay with options:', {
+            key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID?.substring(0, 10) + '...',
+            amount: options.amount,
+            currency: options.currency,
+            order_id: options.order_id
           });
           
+          const razorpay = new (window as any).Razorpay(options);
+          
+          // Add comprehensive error handling for payment failures
+          razorpay.on('payment.failed', function (response: any) {
+            console.error('❌ PAYMENT FAILED:');
+            console.error('Error code:', response.error.code);
+            console.error('Error description:', response.error.description);
+            console.error('Error source:', response.error.source);
+            console.error('Error step:', response.error.step);
+            console.error('Error reason:', response.error.reason);
+            console.error('Full error response:', response);
+            
+            const errorMessage = response.error?.description || 'Payment failed. Please try again.';
+            showError(`Payment failed: ${errorMessage}`);
+          });
+          
+          console.log('✅ Opening Razorpay modal...');
           razorpay.open();
         } catch (error) {
-          console.error('Error opening Razorpay modal:', error);
+          console.error('❌ ERROR OPENING RAZORPAY MODAL:');
+          console.error('Error:', error);
+          console.error('Error message:', error instanceof Error ? error.message : 'Unknown error');
+          console.error('Error stack:', error instanceof Error ? error.stack : 'No stack');
+          
           showError('Failed to open payment modal. Please try again.');
         }
       } else {
-        console.log('Checkout API Error:', data?.error);
+        console.error('❌ CHECKOUT API ERROR:');
+        console.error('Response data:', data);
+        console.error('Response type:', typeof data);
+        console.error('Success property:', data?.success);
+        console.error('Error property:', data?.error);
+        
         const errorMsg = data && typeof data === 'object' 
           ? (data.error || 'Failed to create order')
           : 'Invalid server response. Please try again.';
+        
+        console.error('Final error message to show:', errorMsg);
         showError(errorMsg);
       }
     } catch (error) {
@@ -588,24 +666,15 @@ export default function CartPage() {
                         
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <Button
-                              onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                              size="sm"
-                              variant="outline"
-                              className="h-8 w-8 p-0 border-2 border-gray-300 bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-400 disabled:text-gray-300 disabled:cursor-not-allowed flex items-center justify-center"
-                              disabled={item.quantity <= 1}
-                            >
-                              <Minus className="w-4 h-4" />
-                            </Button>
+                            <button 
+                              onClick={() => item.quantity > 1 ? updateQuantity(item.id, item.quantity - 1) : removeItem(item.id)}
+                              className="w-8 h-8 border rounded hover:bg-gray-100 flex items-center justify-center"
+                            > - </button>
                             <span className="w-12 text-center font-medium text-gray-900">{item.quantity}</span>
-                            <Button
+                            <button 
                               onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                              size="sm"
-                              variant="outline"
-                              className="h-8 w-8 p-0 border-2 border-gray-300 bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-400 flex items-center justify-center"
-                            >
-                              <Plus className="w-4 h-4" />
-                            </Button>
+                              className="w-8 h-8 border rounded hover:bg-gray-100 flex items-center justify-center"
+                            > + </button>
                           </div>
                           
                           <div className="flex items-center gap-4">
@@ -621,7 +690,7 @@ export default function CartPage() {
                               variant="ghost"
                               className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50"
                             >
-                              <Minus className="w-4 h-4" />
+                              ×
                             </Button>
                           </div>
                         </div>
@@ -746,6 +815,14 @@ export default function CartPage() {
                   {/* Payment Method Selection */}
                   <div className="mb-6">
                     <h3 className="text-lg font-semibold text-gray-900 mb-3">Payment Method</h3>
+                    
+                    {/* Payment Method Error */}
+                    {paymentMethodError && (
+                      <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-3">
+                        <p className="text-sm text-red-800">{paymentMethodError}</p>
+                      </div>
+                    )}
+                    
                     <div className="space-y-3">
                       <div
                         className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
@@ -753,51 +830,29 @@ export default function CartPage() {
                             ? 'border-green-500 bg-green-50'
                             : 'border-gray-200 bg-white hover:border-gray-300'
                         }`}
-                        onClick={() => setSelectedPaymentMethod('online')}
+                        onClick={() => handlePaymentMethodChange('online')}
                       >
                         <div className="flex items-center">
-                          <div className={`w-4 h-4 rounded-full border-2 mr-3 ${
-                            selectedPaymentMethod === 'online'
-                              ? 'border-green-500 bg-green-500'
-                              : 'border-gray-300'
-                          }`}>
-                            {selectedPaymentMethod === 'online' && (
-                              <div className="w-full h-full flex items-center justify-center">
-                                <div className="w-2 h-2 bg-white rounded-full"></div>
-                              </div>
-                            )}
-                          </div>
-                          <CreditCard className="w-5 h-5 text-green-600 mr-2" />
-                          <div className="flex-1">
-                            <p className="font-medium text-gray-900">Pay Online</p>
-                            <p className="text-sm text-gray-600">Pay securely with Razorpay</p>
+                          <CreditCard className="w-5 h-5 mr-3 text-gray-700" />
+                          <div>
+                            <p className="font-medium text-gray-900">Online Payment</p>
+                            <p className="text-sm text-gray-600">Pay securely with credit/debit card, UPI, etc.</p>
                           </div>
                         </div>
                       </div>
-
+                      
                       <div
                         className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
                           selectedPaymentMethod === 'cod'
                             ? 'border-green-500 bg-green-50'
                             : 'border-gray-200 bg-white hover:border-gray-300'
                         }`}
-                        onClick={() => setSelectedPaymentMethod('cod')}
+                        onClick={() => handlePaymentMethodChange('cod')}
                       >
                         <div className="flex items-center">
-                          <div className={`w-4 h-4 rounded-full border-2 mr-3 ${
-                            selectedPaymentMethod === 'cod'
-                              ? 'border-green-500 bg-green-500'
-                              : 'border-gray-300'
-                          }`}>
-                            {selectedPaymentMethod === 'cod' && (
-                              <div className="w-full h-full flex items-center justify-center">
-                                <div className="w-2 h-2 bg-white rounded-full"></div>
-                              </div>
-                            )}
-                          </div>
-                          <Truck className="w-5 h-5 text-blue-600 mr-2" />
-                          <div className="flex-1">
-                            <p className="font-medium text-gray-900">Cash on Delivery (COD)</p>
+                          <Truck className="w-5 h-5 mr-3 text-gray-700" />
+                          <div>
+                            <p className="font-medium text-gray-900">Cash on Delivery</p>
                             <p className="text-sm text-gray-600">Pay when you receive your order</p>
                           </div>
                         </div>
@@ -805,47 +860,24 @@ export default function CartPage() {
                     </div>
                   </div>
 
-                  {selectedPaymentMethod === 'online' ? (
-                    <Button
-                      onClick={handleCheckout}
-                      disabled={isCheckingOut || cartItems.length === 0 || !selectedAddress}
-                      className="w-full bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white py-3 text-lg font-semibold shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {isCheckingOut ? 'Processing...' : 'Proceed to Payment'}
-                      <ArrowRight className="w-5 h-5 ml-2" />
-                    </Button>
-                  ) : (
-                    <Button
-                      onClick={handleCodOrder}
-                      disabled={isCheckingOut || cartItems.length === 0 || !selectedAddress}
-                      className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white py-3 text-lg font-semibold shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {isCheckingOut ? 'Processing...' : 'Place COD Order'}
-                      <ArrowRight className="w-5 h-5 ml-2" />
-                    </Button>
-                  )}
-
-                  <div className="mt-4 text-center">
-                    <Button
-                      onClick={() => router.push('/')}
-                      variant="ghost"
-                      className="text-gray-600 hover:text-gray-900"
-                    >
-                      Continue Shopping
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Security Badge */}
-                <div className="mt-4 bg-white rounded-lg shadow-sm p-4">
-                  <div className="flex items-center justify-center space-x-2">
-                    <div className="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center">
-                      <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-                      </svg>
-                    </div>
-                    <span className="text-sm text-gray-800 font-medium">Secure Checkout</span>
-                  </div>
+                  {/* Checkout Button */}
+                  <Button
+                    onClick={selectedPaymentMethod === 'cod' ? handleCodOrder : handleCheckout}
+                    disabled={!selectedAddress || isCheckingOut || cartItems.length === 0}
+                    className="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-3 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                  >
+                    {isCheckingOut ? (
+                      <span className="flex items-center">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Processing...
+                      </span>
+                    ) : (
+                      <span className="flex items-center">
+                        {selectedPaymentMethod === 'cod' ? 'Place Order' : 'Proceed to Payment'}
+                        <ArrowRight className="w-4 h-4 ml-2" />
+                      </span>
+                    )}
+                  </Button>
                 </div>
               </div>
             </div>

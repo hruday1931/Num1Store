@@ -28,6 +28,7 @@ interface CartContextType {
   loading: boolean;
   addToCart: (productId: string, quantity?: number) => Promise<void>;
   removeFromCart: (itemId: string) => Promise<void>;
+  removeItem: (itemId: string) => Promise<void>;
   updateQuantity: (itemId: string, quantity: number) => Promise<void>;
   clearCart: () => Promise<void>;
   fetchCartItems: () => Promise<void>;
@@ -399,6 +400,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const cartCount = cartItems?.reduce((total, item) => total + (item?.quantity || 0), 0) || 0;
   const cartTotal = cartItems?.reduce((total, item) => total + (item?.products?.price || 0) * (item?.quantity || 0), 0) || 0;
 
+  // Alias for removeFromCart to match the requested function name
+  const removeItem = removeFromCart;
+
   const value = {
     cartItems,
     cartCount,
@@ -406,6 +410,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     loading,
     addToCart,
     removeFromCart,
+    removeItem,
     updateQuantity,
     clearCart,
     fetchCartItems,

@@ -126,7 +126,8 @@ export default function CheckoutPage() {
         },
         body: JSON.stringify({
           amount: calculateTotal() * 100, // Convert to paise for Razorpay
-          currency: 'INR'
+          currency: 'INR',
+          shippingAddress: selectedAddress
         }),
       });
 

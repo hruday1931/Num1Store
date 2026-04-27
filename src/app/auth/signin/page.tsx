@@ -25,9 +25,21 @@ function SignInContent() {
     setLoading(true);
     setError(null);
 
+    // Validate environment variables first
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    
+    if (!supabaseUrl || supabaseUrl.includes('your-project-id')) {
+      setError('⚠️ Authentication service not configured. Please run "node setup-supabase.js" for setup instructions.');
+      setLoading(false);
+      return;
+    }
+
     try {
       console.log('=== SIGN IN ATTEMPT ===');
       console.log('Email:', email);
+      console.log('Supabase URL:', supabaseUrl);
+      console.log('Supabase client exists:', !!supabase);
       
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
@@ -52,13 +64,22 @@ function SignInContent() {
       
     } catch (error: any) {
       console.error('=== SIGN IN FAILED ===');
-      console.error('Error:', error);
-      console.error('Message:', error.message);
-      console.error('Code:', error.code);
+      console.error('Full error object:', error);
+      console.error('Error name:', error.name);
+      console.error('Error message:', error.message);
+      console.error('Error code:', error.code);
+      console.error('Error status:', error.status);
+      console.error('Error stack:', error.stack);
       
-      // Handle specific email confirmation error
-      if (error.message?.includes('Email not confirmed') || error.message?.includes('email_confirmed')) {
+      // Handle specific error types
+      if (error.name === 'AuthRetryableFetchError') {
+        setError('Unable to connect to authentication service. Please check your internet connection and try again.');
+      } else if (error.message?.includes('Email not confirmed') || error.message?.includes('email_confirmed')) {
         setError('Please verify your email before logging in. Check your inbox for the confirmation link.');
+      } else if (error.message?.includes('Invalid login credentials')) {
+        setError('Invalid email or password. Please try again.');
+      } else if (error.message?.includes('your-project-id')) {
+        setError('Authentication service not configured properly. Please contact support.');
       } else {
         setError(error.message || 'An error occurred during sign in');
       }

@@ -45,7 +45,20 @@ export async function safeFetch(url: string, options?: RequestInit): Promise<any
       console.error('Response statusText:', response.statusText);
       console.error('Error details:', errorDetails);
       console.error('JSON Response:', jsonResponse);
+      console.error('Request URL:', url);
+      console.error('Request method:', options?.method || 'GET');
+      console.error('Request headers:', options?.headers);
       console.error('=== END SAFE FETCH ERROR DETAILS ===');
+      
+      // Also log to console.table for better visibility
+      console.table({
+        status: response.status,
+        statusText: response.statusText,
+        errorDetails: errorDetails,
+        jsonResponse: jsonResponse,
+        url: url,
+        method: options?.method || 'GET'
+      });
       
       throw new Error(`HTTP error! status: ${response.status}. ${errorDetails}`);
     }
