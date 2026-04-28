@@ -28,17 +28,6 @@ export async function safeFetch(url: string, options?: RequestInit): Promise<any
         errorDetails = 'Could not read error response';
       }
       
-      // Enhanced error message for 401
-      if (response.status === 401) {
-        console.error('Authentication failed:', errorDetails);
-        throw new Error(`HTTP 401 Unauthorized - Authentication failed. Please sign in again.`);
-      }
-      
-      // For 400 status, always throw an error with the response message
-      if (response.status === 400 && jsonResponse) {
-        throw new Error(jsonResponse.error || `HTTP error! status: ${response.status}. ${errorDetails}`);
-      }
-      
       // Log the full error details before throwing
       console.error('=== SAFE FETCH ERROR DETAILS ===');
       console.error('Response status:', response.status);
@@ -59,6 +48,17 @@ export async function safeFetch(url: string, options?: RequestInit): Promise<any
         url: url,
         method: options?.method || 'GET'
       });
+      
+      // Enhanced error message for 401
+      if (response.status === 401) {
+        const authError = jsonResponse?.error || errorDetails || 'Authentication failed';
+        throw new Error(`HTTP 401 Unauthorized - ${authError}`);
+      }
+      
+      // For 400 status, always throw an error with the response message
+      if (response.status === 400 && jsonResponse) {
+        throw new Error(jsonResponse.error || `HTTP error! status: ${response.status}. ${errorDetails}`);
+      }
       
       throw new Error(`HTTP error! status: ${response.status}. ${errorDetails}`);
     }

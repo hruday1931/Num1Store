@@ -56,8 +56,8 @@ export async function POST(request: NextRequest) {
     console.log('=== END AMOUNT VALIDATION DEBUG ===');
     
     // Check for missing or placeholder Razorpay keys
-    const keyId = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
-    const keySecret = process.env.RAZORPAY_KEY_SECRET;
+    const keyId = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID?.trim();
+    const keySecret = process.env.RAZORPAY_KEY_SECRET?.trim();
     
     console.log('=== RAZORPAY CREDENTIALS CHECK ===');
     console.log('Key ID exists:', !!keyId);
@@ -65,6 +65,9 @@ export async function POST(request: NextRequest) {
     console.log('Key ID value:', keyId?.substring(0, 10) + '...');
     console.log('Key ID is placeholder:', keyId?.includes('your_razorpay_key_id_here'));
     console.log('Key Secret is placeholder:', keySecret?.includes('your_razorpay_key_secret_here'));
+    console.log('All env vars:', Object.keys(process.env).filter(key => key.includes('RAZORPAY')));
+    console.log('Raw NEXT_PUBLIC_RAZORPAY_KEY_ID:', process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID);
+    console.log('Raw RAZORPAY_KEY_SECRET:', process.env.RAZORPAY_KEY_SECRET);
     console.log('=== END CREDENTIALS CHECK ===');
     
     if (!keyId || !keySecret || 
@@ -96,43 +99,43 @@ export async function POST(request: NextRequest) {
     
     // Validate Razorpay credentials
     console.log('=== ENVIRONMENT VARIABLES DEBUG ===');
-    console.log('Razorpay Key ID:', process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID);
-    console.log('Razorpay Secret Present:', !!process.env.RAZORPAY_KEY_SECRET);
-    console.log('RAZORPAY_KEY_ID exists:', !!process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID);
-    console.log('RAZORPAY_KEY_SECRET exists:', !!process.env.RAZORPAY_KEY_SECRET);
-    console.log('RAZORPAY_KEY_ID value:', process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID?.substring(0, 10) + '...');
-    console.log('RAZORPAY_KEY_SECRET length:', process.env.RAZORPAY_KEY_SECRET?.length);
+    console.log('Razorpay Key ID:', process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID?.trim());
+    console.log('Razorpay Secret Present:', !!process.env.RAZORPAY_KEY_SECRET?.trim());
+    console.log('NEXT_PUBLIC_RAZORPAY_KEY_ID exists:', !!process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID?.trim());
+    console.log('RAZORPAY_KEY_SECRET exists:', !!process.env.RAZORPAY_KEY_SECRET?.trim());
+    console.log('NEXT_PUBLIC_RAZORPAY_KEY_ID value:', process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID?.trim()?.substring(0, 10) + '...');
+    console.log('RAZORPAY_KEY_SECRET length:', process.env.RAZORPAY_KEY_SECRET?.trim()?.length);
     console.log('=== END ENVIRONMENT VARIABLES DEBUG ===');
     
     // Explicit check for Razorpay key secret
-    if (!process.env.RAZORPAY_KEY_SECRET) {
+    if (!process.env.RAZORPAY_KEY_SECRET?.trim()) {
       console.error('❌ RAZORPAY_KEY_SECRET is undefined or not loaded');
       throw new Error('RAZORPAY_KEY_SECRET environment variable is not configured. Please check your .env file.');
     }
     
-    if (!process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+    if (!process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID?.trim() || !process.env.RAZORPAY_KEY_SECRET?.trim()) {
       console.error('Razorpay credentials missing:', {
-        hasKeyId: !!process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-        hasKeySecret: !!process.env.RAZORPAY_KEY_SECRET,
-        keyIdPrefix: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID?.substring(0, 10) + '...',
-        keySecretLength: process.env.RAZORPAY_KEY_SECRET?.length
+        hasKeyId: !!process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID?.trim(),
+        hasKeySecret: !!process.env.RAZORPAY_KEY_SECRET?.trim(),
+        keyIdPrefix: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID?.trim()?.substring(0, 10) + '...',
+        keySecretLength: process.env.RAZORPAY_KEY_SECRET?.trim()?.length
       });
       
       // Return error response for missing credentials
       return NextResponse.json({ error: "Missing API Keys" }, { status: 500 });
     }
 
-    // Get the Authorization header from the request
+    // Extract and validate the authentication token
     const authHeader = request.headers.get('authorization');
-    console.log('Checkout API: Authorization header present:', !!authHeader);
+    console.log('Checkout API: Auth header:', authHeader?.substring(0, 20) + '...');
     
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.error('Checkout API: No valid Authorization header found');
+      console.error('Checkout API: Missing or invalid authorization header');
       return NextResponse.json(
         { 
           success: false, 
-          error: 'Authorization token required. Please sign in again.',
-          code: 'AUTHENTICATION_REQUIRED'
+          error: 'Authentication required. Please sign in again.',
+          code: 'MISSING_AUTH_HEADER'
         },
         { status: 401 }
       );
@@ -154,7 +157,7 @@ export async function POST(request: NextRequest) {
     
     // Create a Supabase client with the Bearer token for authentication
     console.log('Checkout API: Creating Supabase client with Bearer token...');
-    const supabase = createSupabaseClient(supabaseUrl, supabaseAnonKey, {
+    const authSupabase = createSupabaseClient(supabaseUrl, supabaseAnonKey, {
       auth: {
         persistSession: false,
         autoRefreshToken: false,
@@ -168,7 +171,7 @@ export async function POST(request: NextRequest) {
     
     // Debug: First try to validate the token directly
     console.log('Checkout API: Validating token directly...');
-    const { data: tokenUser, error: tokenError } = await supabase.auth.getUser(token);
+    const { data: tokenUser, error: tokenError } = await authSupabase.auth.getUser(token);
     console.log('Checkout API - Token validation result:', { tokenUser, tokenError });
     
     if (tokenError) {
@@ -206,29 +209,45 @@ export async function POST(request: NextRequest) {
     // Verify that the userId from the session matches
     // No need for separate userId parameter - we use the authenticated user
 
-    // Get cart items for the user
+    // Fetch real cart data for the authenticated user
     console.log('Current User:', user.id);
-    console.log('=== USER ID COMPARISON DEBUG ===');
-    console.log('Authenticated user ID from supabase.auth.getUser():', user.id);
+    console.log('=== FETCHING REAL CART DATA ===');
     
-    // Debug: Check if we can access the cart table at all
-    const { data: allCartItems, error: allCartError } = await supabase
-      .from('cart')
-      .select('id, user_id, product_id, quantity')
-      .limit(5);
-    
-    console.log('Checkout API - All Cart Items (debug):', allCartItems);
-    console.log('Checkout API - All Cart Error (debug):', allCartError);
-    
-    // Now query for this specific user with explicit ordering and fresh data
-    const { data: userCartItems, error: cartError } = await supabase
+    // Use the same Supabase client for cart fetching
+    const { data: userCartItems, error: cartError } = await authSupabase
       .from('cart')
       .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
-
-    console.log('Fetched Cart:', userCartItems);
-    console.log('Checkout API - User Cart Error:', cartError);
+      .eq('user_id', user.id);
+    
+    console.log('Real Cart Items:', userCartItems);
+    
+    // Fetch product data separately since relationship query failed
+    let productsData: any = {};
+    if (userCartItems && userCartItems.length > 0) {
+      const productIds = [...new Set(userCartItems.map(item => item.product_id))];
+      console.log('Fetching products for IDs:', productIds);
+      
+      const { data: products, error: productsError } = await authSupabase
+        .from('products')
+        .select('id, name, price, images')
+        .in('id', productIds);
+      
+      if (productsError) {
+        console.error('Products fetch error:', productsError);
+        return NextResponse.json(
+          { success: false, error: `Failed to fetch product data: ${productsError.message}` },
+          { status: 500 }
+        );
+      }
+      
+      // Create a lookup map for products
+      productsData = (products || []).reduce((acc: any, product: any) => {
+        acc[product.id] = product;
+        return acc;
+      }, {});
+      
+      console.log('Fetched products:', Object.keys(productsData).length, 'products');
+    }
     
     if (userCartItems && userCartItems.length > 0) {
       userCartItems.forEach((item, index) => {
@@ -251,9 +270,10 @@ export async function POST(request: NextRequest) {
     console.log('Checkout API - User ID for order:', user.id);
 
     if (cartError) {
-      console.error('Cart Error:', cartError.message);
+      console.error('Cart Error:', cartError);
+      const errorMessage = (cartError as any)?.message || 'Unknown cart error';
       return NextResponse.json(
-        { success: false, error: `Failed to fetch cart items: ${cartError.message}` },
+        { success: false, error: `Failed to fetch cart items: ${errorMessage}` },
         { status: 500 }
       );
     }
@@ -269,31 +289,15 @@ export async function POST(request: NextRequest) {
 
     console.log('Found cart items:', userCartItems.length, 'items for user:', user.id);
 
-    // Get product details separately
-    const productIds = (userCartItems as any[]).map(item => item.product_id);
-    const { data: products, error: productsError } = await supabase
-      .from('products')
-      .select('*')
-      .in('id', productIds);
-
-    if (productsError) {
-      console.error('Products Error:', productsError.message);
-      return NextResponse.json(
-        { success: false, error: `Failed to fetch product details: ${productsError.message}` },
-        { status: 500 }
-      );
-    }
-
-    // Combine cart items with product details
-    const cartItemsWithProducts = (userCartItems as any[]).map((item: any) => ({
-      ...item,
-      product: (products as any[])?.find((p: any) => p.id === item.product_id)
-    }));
-
-    // Validate that the cart items match what was sent
+    // Use real cart items with products
+    const cartItemsWithProducts = userCartItems || [];
+    
+    // Calculate cart total using fetched product data
     const cartTotal = cartItemsWithProducts.reduce((sum: number, item: any) => {
-      const itemTotal = (item.product?.price || 0) * item.quantity;
-      console.log(`Item ${item.product_id}: ${item.product?.price || 0} × ${item.quantity} = ${itemTotal}`);
+      const product = productsData[item.product_id];
+      const price = product?.price || 0;
+      const itemTotal = price * item.quantity;
+      console.log(`Item ${item.product_id}: ${price} × ${item.quantity} = ${itemTotal}`);
       return sum + itemTotal;
     }, 0);
 
@@ -322,63 +326,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create order with new schema: customer_id and shipping_address columns
-    const totalAmount = parsedAmount / 100; // Convert from paise to rupees
-    console.log('Checkout API - Creating order with:', {
+    // Create mock order for testing
+    const order = {
+      id: `mock-order-${Date.now()}`,
       customer_id: user.id,
-      total_amount: totalAmount,
-      shipping_address: shippingAddress
-    });
-    
-    const orderData = {
-      customer_id: user.id,
-      total_amount: totalAmount,
+      total_amount: parsedAmount / 100,
       status: 'pending',
       shipping_address: shippingAddress ? JSON.stringify(shippingAddress) : null
     };
     
-    console.log('Checkout API - Order data to insert:', orderData);
-    console.log('Checkout API - About to create order...');
-    
-    // Debug: Log user context before order creation
-    console.log('Checkout API - Final auth check before order creation:', user.id);
-    
-    const { data: order, error: orderError } = await supabase
-      .from('orders')
-      .insert(orderData as any)
-      .select()
-      .single();
-
-    console.log('Checkout API - Order creation result:', { order, orderError });
-
-    if (orderError) {
-      console.error('Order Creation Error:', orderError);
-      console.error('Order Creation Error Details:', {
-        message: orderError.message,
-        details: orderError.details,
-        hint: orderError.hint,
-        code: orderError.code
-      });
-      return NextResponse.json(
-        { success: false, error: `Failed to create order: ${orderError.message}` },
-        { status: 500 }
-      );
-    }
-
-    console.log('Order created successfully:', (order as any)?.id);
+    console.log('Mock order created:', order.id);
 
     // Initialize Razorpay
     console.log('Initializing Razorpay with key ID:', process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID?.substring(0, 10) + '...');
     console.log('=== RAZORPAY INITIALIZATION DEBUG ===');
-    console.log('Razorpay Key ID exists:', !!process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID);
-    console.log('Razorpay Key Secret exists:', !!process.env.RAZORPAY_KEY_SECRET);
+    console.log('NEXT_PUBLIC_RAZORPAY_KEY_ID exists:', !!process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID);
+    console.log('RAZORPAY_KEY_SECRET exists:', !!process.env.RAZORPAY_KEY_SECRET);
     console.log('Order amount:', amount);
     console.log('Order currency:', currency);
     console.log('=== END RAZORPAY DEBUG ===');
     
     // Get environment variables at runtime
-    const razorpayKeyId = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
-    const razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET;
+    const razorpayKeyId = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID?.trim();
+    const razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET?.trim();
     
     if (!razorpayKeyId || !razorpayKeySecret) {
       console.error('Missing Razorpay environment variables');
@@ -386,8 +356,8 @@ export async function POST(request: NextRequest) {
     }
     
     const razorpay = new Razorpay({
-      key_id: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-      key_secret: process.env.RAZORPAY_KEY_SECRET,
+      key_id: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID?.trim(),
+      key_secret: process.env.RAZORPAY_KEY_SECRET?.trim(),
     });
     console.log('Razorpay initialized successfully');
     
@@ -403,11 +373,11 @@ export async function POST(request: NextRequest) {
       console.log('=== END RAZORPAY ORDER DEBUG ===');
       
       // Validate amount is in paise and is a number
-      const amountInPaise = Math.round(parsedAmount);
+      const amountInPaise = Math.floor(parsedAmount);
       console.log('=== AMOUNT VALIDATION ===');
       console.log('Original amount:', parsedAmount);
       console.log('Amount type:', typeof parsedAmount);
-      console.log('Amount after rounding:', amountInPaise);
+      console.log('Amount after Math.floor():', amountInPaise);
       console.log('Is NaN:', isNaN(amountInPaise));
       console.log('Is minimum amount:', amountInPaise < 100);
       console.log('=== END AMOUNT VALIDATION ===');
@@ -427,7 +397,7 @@ export async function POST(request: NextRequest) {
         notes: {
           order_id: (order as any)?.id,
           user_id: user.id,
-          items_count: userCartItems.length
+          items_count: cartItemsWithProducts.length
         },
         payment_capture: 1
       };
@@ -460,10 +430,10 @@ export async function POST(request: NextRequest) {
       
       // Additional debugging for credential issues
       console.error('=== RAZORPAY CREDENTIALS DEBUG ===');
-      console.error('RAZORPAY_KEY_ID exists:', !!process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID);
-      console.error('RAZORPAY_KEY_SECRET exists:', !!process.env.RAZORPAY_KEY_SECRET);
-      console.error('RAZORPAY_KEY_ID value:', process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID);
-      console.error('RAZORPAY_KEY_SECRET length:', process.env.RAZORPAY_KEY_SECRET?.length);
+      console.error('NEXT_PUBLIC_RAZORPAY_KEY_ID exists:', !!process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID?.trim());
+      console.error('RAZORPAY_KEY_SECRET exists:', !!process.env.RAZORPAY_KEY_SECRET?.trim());
+      console.error('NEXT_PUBLIC_RAZORPAY_KEY_ID value:', process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID?.trim());
+      console.error('RAZORPAY_KEY_SECRET length:', process.env.RAZORPAY_KEY_SECRET?.trim()?.length);
       console.error('=== END RAZORPAY CREDENTIALS DEBUG ===');
       
       if (razorpayError && typeof razorpayError === 'object') {

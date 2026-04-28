@@ -127,11 +127,8 @@ export async function POST(request: NextRequest) {
     // Get cart items
     const { data: cartItems, error: cartError } = await supabase
       .from('cart')
-      .select(`
-        *,
-        product:products(*)
-      `)
-      .eq('user_id', user.id);
+      .select('*')
+      .eq('user_id', user.id) as { data: CartItem[]; error: any };
 
     if (cartError) {
       console.error('Cart Error:', cartError.message);
@@ -141,6 +138,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Fetch product data separately since relationship query was removed
+    let productsData: any = {};
+    if (cartItems && cartItems.length > 0) {
+      const productIds = [...new Set(cartItems.map(item => item.product_id))];
+      
+      const { data: products, error: productsError } = await supabase
+        .from('products')
+        .select('id, name, price')
+        .in('id', productIds);
+      
+      if (productsError) {
+        console.error('Products fetch error:', productsError);
+        return NextResponse.json(
+          { success: false, error: `Failed to fetch product data: ${productsError.message}` },
+          { status: 500 }
+        );
+      }
+      
+      // Create a lookup map for products
+      productsData = (products || []).reduce((acc: any, product: any) => {
+        acc[product.id] = product;
+        return acc;
+      }, {});
+    }
+
     if (!cartItems || cartItems.length === 0) {
       return NextResponse.json(
         { success: false, error: 'Cart is empty' },
@@ -148,9 +170,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Calculate total amount
+    // Calculate total amount using fetched product data
     const totalAmount = cartItems.reduce((sum: number, item: CartItem) => {
-      return sum + (item.product?.price || 0) * item.quantity;
+      const product = productsData[item.product_id];
+      const price = product?.price || 0;
+      return sum + price * item.quantity;
     }, 0);
 
     // Create order

@@ -12,7 +12,7 @@ import { CreditCard, ArrowLeft, CheckCircle, AlertCircle, Shield, Truck, Loader2
 import { safeFetch } from '@/utils/fetch-wrapper';
 
 // Razorpay key constant defined outside component
-const RZP_KEY = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
+const RZP_KEY = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID?.trim();
 
 declare global {
   interface Window {
@@ -32,7 +32,7 @@ export default function PaymentPage() {
 
   // Debug console logs for environment variable
   console.log('=== Razorpay Debug Info ===');
-  console.log('NEXT_PUBLIC_RAZORPAY_KEY_ID:', process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID);
+  console.log('NEXT_PUBLIC_RAZORPAY_KEY_ID:', process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID?.trim());
   console.log('RZP_KEY constant:', RZP_KEY);
   console.log('Environment check:', typeof process !== 'undefined' && process.env);
 
@@ -103,7 +103,7 @@ export default function PaymentPage() {
 
     if (!RZP_KEY) {
       setError('Payment configuration error. Please contact support.');
-      console.error('Razorpay key is missing:', { RZP_KEY, envVar: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID });
+      console.error('Razorpay key is missing:', { RZP_KEY, envVar: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID?.trim() });
       return;
     }
 
@@ -122,7 +122,7 @@ export default function PaymentPage() {
 
     try {
       // Amount integer fix - ensure no decimals are sent
-      const amountInPaise = parseFloat(amount.toString()) * 100;
+      const amountInPaise = Math.floor(parseFloat(amount.toString()) * 100);
       console.log('Amount in paise:', amountInPaise);
 
       // Create order on backend
@@ -178,12 +178,13 @@ export default function PaymentPage() {
 
       // Razorpay options
       const options = {
-        key: RZP_KEY,
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID?.trim(),
         amount: amountInPaise,
         currency: 'INR',
         name: 'Num1Store',
         description: 'Purchase Payment',
         order_id: razorpayOrder.id,
+        receipt: razorpayOrder.receipt,
         handler: async function (response: any) {
           console.log('Payment successful:', response);
           
@@ -403,6 +404,7 @@ export default function PaymentPage() {
               <p>Script Loaded: {scriptLoaded ? 'Yes' : 'No'}</p>
               <p>Razorpay Available: {window.Razorpay ? 'Yes' : 'No'}</p>
               <p>RZP Key: {RZP_KEY ? 'Set' : 'Not Set'}</p>
+              <p>Key Value: {RZP_KEY ? RZP_KEY.substring(0, 10) + '...' : 'N/A'}</p>
               <p>Amount: ₹{amount}</p>
             </div>
           </div>
