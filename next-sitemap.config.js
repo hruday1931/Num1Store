@@ -1,5 +1,5 @@
 /** @type {import('next-sitemap').IConfig} */
-module.exports = {
+export default {
   siteUrl: process.env.NEXT_PUBLIC_APP_URL || 'https://num1-store.vercel.app',
   generateRobotsTxt: true,
   generateIndexSitemap: false,
