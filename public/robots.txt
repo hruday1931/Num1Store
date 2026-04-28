@@ -1,0 +1,9 @@
+# *
+User-agent: *
+Allow: /
+
+# Host
+Host: https://num1-store.vercel.app
+
+# Sitemaps
+Sitemap: https://num1-store.vercel.app/sitemap.xml
