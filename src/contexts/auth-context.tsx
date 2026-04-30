@@ -32,11 +32,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Set a timeout to prevent infinite loading
+    const timeoutId = setTimeout(() => {
+      console.log('Auth context loading timeout - forcing loading to false');
+      setLoading(false);
+      setSession(null);
+      setUser(null);
+    }, 2000); // Reduced to 2 second timeout
+
     // Get initial session and handle refresh
     const getInitialSession = async () => {
       try {
         const client = getSupabase();
-        if (!client) return;
+        if (!client) {
+          setLoading(false);
+          return;
+        }
         
         const { data: { session } } = await client.auth.getSession();
         
@@ -71,6 +82,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(null);
         setUser(null);
       } finally {
+        clearTimeout(timeoutId);
         setLoading(false);
       }
     };

@@ -104,13 +104,43 @@ export function CategoryBar() {
 
   useEffect(() => {
     const fetchCategories = async () => {
+      // Set a timeout to prevent infinite loading
+      const timeoutId = setTimeout(() => {
+        console.log('Categories loading timeout - using fallback data');
+        setCategories([
+          { id: '1', name: 'Electronics', slug: 'electronics', description: 'Gadgets and tech', icon_name: 'Laptop' },
+          { id: '2', name: 'Fashion', slug: 'fashion', description: 'Clothing and style', icon_name: 'Shirt' },
+          { id: '3', name: 'Home', slug: 'home', description: 'Home essentials', icon_name: 'Home' },
+          { id: '4', name: 'Beauty', slug: 'beauty', description: 'Beauty products', icon_name: 'Sparkles' },
+          { id: '5', name: 'Sports', slug: 'sports', description: 'Sports & fitness', icon_name: 'Dumbbell' },
+          { id: '6', name: 'Gaming', slug: 'gaming', description: 'Video games', icon_name: 'Gamepad2' },
+          { id: '7', name: 'Books', slug: 'books', description: 'Books & media', icon_name: 'Book' },
+          { id: '8', name: 'Automotive', slug: 'automotive', description: 'Car accessories', icon_name: 'Car' },
+        ]);
+        setLoading(false);
+      }, 600); // Reduced to 0.6 second timeout for faster loading
+
       try {
         const data = await safeFetch('/api/categories');
+        clearTimeout(timeoutId);
         if (data.categories) {
           console.log('Categories loaded:', data.categories);
           setCategories(data.categories);
+        } else {
+          // Fallback to mock data if no categories returned
+          setCategories([
+            { id: '1', name: 'Electronics', slug: 'electronics', description: 'Gadgets and tech', icon_name: 'Laptop' },
+            { id: '2', name: 'Fashion', slug: 'fashion', description: 'Clothing and style', icon_name: 'Shirt' },
+            { id: '3', name: 'Home', slug: 'home', description: 'Home essentials', icon_name: 'Home' },
+            { id: '4', name: 'Beauty', slug: 'beauty', description: 'Beauty products', icon_name: 'Sparkles' },
+            { id: '5', name: 'Sports', slug: 'sports', description: 'Sports & fitness', icon_name: 'Dumbbell' },
+            { id: '6', name: 'Gaming', slug: 'gaming', description: 'Video games', icon_name: 'Gamepad2' },
+            { id: '7', name: 'Books', slug: 'books', description: 'Books & media', icon_name: 'Book' },
+            { id: '8', name: 'Automotive', slug: 'automotive', description: 'Car accessories', icon_name: 'Car' },
+          ]);
         }
       } catch (error) {
+        clearTimeout(timeoutId);
         console.error('Error fetching categories:', error);
         // Fallback to mock data for testing
         setCategories([
@@ -122,16 +152,6 @@ export function CategoryBar() {
           { id: '6', name: 'Gaming', slug: 'gaming', description: 'Video games', icon_name: 'Gamepad2' },
           { id: '7', name: 'Books', slug: 'books', description: 'Books & media', icon_name: 'Book' },
           { id: '8', name: 'Automotive', slug: 'automotive', description: 'Car accessories', icon_name: 'Car' },
-          { id: '9', name: 'Baby', slug: 'baby', description: 'Baby products', icon_name: 'Baby' },
-          { id: '10', name: 'Food', slug: 'food', description: 'Food & drinks', icon_name: 'Utensils' },
-          { id: '11', name: 'Music', slug: 'music', description: 'Music & audio', icon_name: 'Music' },
-          { id: '12', name: 'Photography', slug: 'photography', description: 'Cameras', icon_name: 'Camera' },
-          { id: '13', name: 'Accessories', slug: 'accessories', description: 'Fashion accessories', icon_name: 'Watch' },
-          { id: '14', name: 'Smartphones', slug: 'smartphones', description: 'Mobile phones', icon_name: 'Smartphone' },
-          { id: '15', name: 'Audio', slug: 'audio', description: 'Audio equipment', icon_name: 'Headphones' },
-          { id: '16', name: 'Coffee', slug: 'coffee', description: 'Coffee & tea', icon_name: 'Coffee' },
-          { id: '17', name: 'Art', slug: 'art', description: 'Art & craft', icon_name: 'Palette' },
-          { id: '18', name: 'Travel', slug: 'travel', description: 'Travel gear', icon_name: 'Plane' },
         ]);
       } finally {
         setLoading(false);

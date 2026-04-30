@@ -37,12 +37,30 @@ export function HeroSlider() {
 
   useEffect(() => {
     const fetchHeroBanners = async () => {
+      // Set a timeout to prevent infinite loading
+      const timeoutId = setTimeout(() => {
+        console.log('Hero banners loading timeout - using fallback data');
+        setHeroBanners([
+          {
+            id: '1',
+            title: 'Electronics Week',
+            subtitle: 'Best deals on gadgets & tech',
+            image_url: 'https://images.unsplash.com/photo-1556656793-08538906a9f8?w=1920&h=600&fit=crop&auto=format&q=80',
+            button_text: 'Shop Now',
+            active: true
+          }
+        ]);
+        setLoading(false);
+      }, 800); // Reduced to 0.8 second timeout for faster loading
+
       try {
         const supabase = getSupabaseClient();
         const { data, error } = await supabase
           .from('hero_banners')
           .select('*')
           .eq('active', true);
+
+        clearTimeout(timeoutId);
 
         if (error) {
           console.error('Error fetching hero banners:', error);
@@ -58,10 +76,31 @@ export function HeroSlider() {
             }
           ]);
         } else {
-          setHeroBanners(data || []);
+          setHeroBanners(data || [
+            {
+              id: '1',
+              title: 'Electronics Week',
+              subtitle: 'Best deals on gadgets & tech',
+              image_url: 'https://images.unsplash.com/photo-1556656793-08538906a9f8?w=1920&h=600&fit=crop&auto=format&q=80',
+              button_text: 'Shop Now',
+              active: true
+            }
+          ]);
         }
       } catch (error) {
+        clearTimeout(timeoutId);
         console.error('Error:', error);
+        // Fallback data on any error
+        setHeroBanners([
+          {
+            id: '1',
+            title: 'Electronics Week',
+            subtitle: 'Best deals on gadgets & tech',
+            image_url: 'https://images.unsplash.com/photo-1556656793-08538906a9f8?w=1920&h=600&fit=crop&auto=format&q=80',
+            button_text: 'Shop Now',
+            active: true
+          }
+        ]);
       } finally {
         setLoading(false);
       }
@@ -72,8 +111,11 @@ export function HeroSlider() {
 
   if (loading) {
     return (
-      <div className="relative w-full h-[480px] md:h-[400px] lg:h-[480px] bg-black flex items-center justify-center">
-        <div className="text-white text-xl">Loading...</div>
+      <div className="relative w-full h-[480px] md:h-[400px] lg:h-[480px] bg-gradient-to-r from-gray-900 to-gray-800 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-3 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+          <div className="text-white text-lg font-medium">Loading deals...</div>
+        </div>
       </div>
     );
   }

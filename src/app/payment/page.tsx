@@ -4,12 +4,14 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Script from 'next/script';
 import { useAuth } from '@/contexts/auth-context';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
 import { Button } from '@/components/ui/button';
 import { CreditCard, ArrowLeft, CheckCircle, AlertCircle, Shield, Truck, Loader2, Check } from 'lucide-react';
 import { safeFetch } from '@/utils/fetch-wrapper';
+import { useToast } from '@/contexts/toast-context';
 
 // Razorpay key constant defined outside component
 const RZP_KEY = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID?.trim();
@@ -23,12 +25,14 @@ declare global {
 export default function PaymentPage() {
   const { user, session } = useAuth();
   const router = useRouter();
+  const { error: showError } = useToast();
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [amount, setAmount] = useState(0);
   const [scriptLoaded, setScriptLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [shippingAddress, setShippingAddress] = useState('');
+  const [scriptTimeout, setScriptTimeout] = useState(false);
 
   // Debug console logs for environment variable
   console.log('=== Razorpay Debug Info ===');
@@ -37,51 +41,93 @@ export default function PaymentPage() {
   console.log('Environment check:', typeof process !== 'undefined' && process.env);
 
   useEffect(() => {
-    // Load Razorpay script
-    const loadRazorpayScript = () => {
-      console.log('Loading Razorpay script...');
-      
-      if (window.Razorpay) {
-        console.log('Razorpay already loaded');
-        setScriptLoaded(true);
+    // Set timeout for script loading
+    const timeoutId = setTimeout(() => {
+      if (!scriptLoaded) {
+        console.error('Razorpay script loading timeout');
+        setScriptTimeout(true);
+        setError('Payment gateway failed to load. Please check your internet connection and try again.');
         setLoading(false);
-        return;
       }
+    }, 5000); // 5 second timeout
 
-      const script = document.createElement('script');
-      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-      script.async = true;
-      
-      script.onload = () => {
-        console.log('Razorpay script loaded successfully');
-        setScriptLoaded(true);
-        setLoading(false);
-      };
-      
-      script.onerror = () => {
-        console.error('Failed to load Razorpay script');
-        setError('Failed to load payment gateway. Please refresh the page.');
-        setLoading(false);
-      };
-      
-      document.body.appendChild(script);
-    };
+    return () => clearTimeout(timeoutId);
+  }, [scriptLoaded]);
 
-    // Get amount from query params or sessionStorage
+  // Additional safety timeout to prevent indefinite loading
+  useEffect(() => {
+    const safetyTimeout = setTimeout(() => {
+      if (loading) {
+        console.error('Page stuck in loading state - forcing exit');
+        setError('Page loading took too long. Please refresh and try again.');
+        setLoading(false);
+      }
+    }, 10000); // 10 second safety timeout
+
+    return () => clearTimeout(safetyTimeout);
+  }, [loading]);
+
+  useEffect(() => {
+    // Get amount and orderId from query params or sessionStorage
     const urlParams = new URLSearchParams(window.location.search);
     const orderAmount = urlParams.get('amount') || sessionStorage.getItem('payment_amount');
+    const orderId = urlParams.get('orderId') || sessionStorage.getItem('order_id');
+    
+    // Log parameters for debugging
+    console.log('=== Payment Parameters Debug ===');
+    console.log('Order ID:', orderId);
+    console.log('Amount:', orderAmount);
+    console.log('Amount type:', typeof orderAmount);
+    console.log('Is amount null:', orderAmount === null);
+    console.log('Is amount undefined:', orderAmount === undefined);
+    console.log('Is orderId null:', orderId === null);
+    console.log('Is orderId undefined:', orderId === undefined);
+    console.log('URL params:', Object.fromEntries(urlParams.entries()));
+    console.log('Session storage payment_amount:', sessionStorage.getItem('payment_amount'));
+    console.log('Session storage order_id:', sessionStorage.getItem('order_id'));
+    
+    // Check if orderId is missing
+    if (!orderId) {
+      console.error('No order ID specified');
+      setError('No order ID found. Please return to checkout and try again.');
+      setLoading(false);
+      return;
+    }
     
     if (orderAmount) {
       const parsedAmount = parseFloat(orderAmount);
       console.log('Parsed amount:', parsedAmount);
+      console.log('Is parsed amount NaN:', isNaN(parsedAmount));
+      
+      if (isNaN(parsedAmount) || parsedAmount <= 0) {
+        console.error('Invalid payment amount:', orderAmount);
+        setError('Invalid payment amount. Please return to checkout.');
+        setLoading(false);
+        return;
+      }
+      
       setAmount(parsedAmount);
     } else {
-      setError('No payment amount specified');
-      setLoading(false);
+      console.error('No payment amount specified');
+      setError('No payment amount specified. Please return to checkout.');
     }
-
-    loadRazorpayScript();
+    
+    // Always set loading to false after processing
+    setLoading(false);
   }, []);
+
+  const handleScriptLoad = () => {
+    console.log('Razorpay script loaded successfully via Next.js Script');
+    setScriptLoaded(true);
+    setLoading(false); // Ensure loading is set to false when script loads
+  };
+
+  const handleScriptError = () => {
+    console.error('Failed to load Razorpay script via Next.js Script');
+    setError('Failed to load payment gateway. Please refresh the page.');
+    setScriptLoaded(false);
+    setLoading(false); // Ensure loading is set to false on script error
+  };
 
   const handlePayment = async () => {
     console.log('=== Payment Initiated ===');
@@ -90,35 +136,54 @@ export default function PaymentPage() {
     console.log('RZP_KEY available:', !!RZP_KEY);
     console.log('Amount:', amount);
 
-    // Ensure Razorpay script is loaded
-    if (!scriptLoaded) {
-      setError('Payment gateway is still loading. Please wait...');
-      return;
-    }
+    // Temporarily disabled for debugging
+    console.log('Payment temporarily disabled for debugging');
+    setError('Payment functionality temporarily disabled for debugging');
+    return;
 
-    if (!window.Razorpay) {
-      setError('Payment gateway not available. Please refresh the page.');
-      return;
-    }
+    try {
+      // Ensure Razorpay script is loaded and available
+      if (!scriptLoaded || scriptTimeout) {
+        const errorMsg = scriptTimeout 
+          ? 'Payment gateway failed to load due to timeout. Please refresh the page.'
+          : 'Payment gateway is still loading. Please wait...';
+        setError(errorMsg);
+        return;
+      }
 
-    if (!RZP_KEY) {
-      setError('Payment configuration error. Please contact support.');
-      console.error('Razorpay key is missing:', { RZP_KEY, envVar: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID?.trim() });
-      return;
-    }
+      if (!window.Razorpay) {
+        console.error('window.Razorpay is undefined even after script loaded');
+        const errorMsg = 'Payment gateway not available. Redirecting to checkout...';
+        setError(errorMsg);
+        
+        // Show toast error
+        showError('Unable to load payment gateway. Please try again.');
+        
+        // Redirect to checkout after a short delay
+        setTimeout(() => {
+          router.push('/checkout');
+        }, 2000);
+        return;
+      }
 
-    if (amount <= 0 || isNaN(amount)) {
-      setError('Invalid payment amount');
-      return;
-    }
+      if (!RZP_KEY) {
+        setError('Payment configuration error. Please contact support.');
+        console.error('Razorpay key is missing:', { RZP_KEY, envVar: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID?.trim() });
+        return;
+      }
 
-    if (!shippingAddress || shippingAddress.trim() === '') {
-      setError('Shipping address is required');
-      return;
-    }
+      if (amount <= 0 || isNaN(amount)) {
+        setError('Invalid payment amount');
+        return;
+      }
 
-    setProcessing(true);
-    setError(null);
+      if (!shippingAddress || shippingAddress.trim() === '') {
+        setError('Shipping address is required');
+        return;
+      }
+
+      setProcessing(true);
+      setError(null);
 
     try {
       // Amount integer fix - ensure no decimals are sent
@@ -233,19 +298,36 @@ export default function PaymentPage() {
       };
 
       console.log('Opening Razorpay modal with options:', options);
-      const rzp = new window.Razorpay(options);
       
-      rzp.on('payment.failed', function (response: any) {
-        console.error('Payment failed:', response);
-        setError(`Payment failed: ${response.error.description}`);
-        setProcessing(false);
-      });
+      // Wrap Razorpay initialization in try-catch
+      try {
+        const rzp = new window.Razorpay(options);
+        
+        rzp.on('payment.failed', function (response: any) {
+          console.error('Payment failed:', response);
+          setError(`Payment failed: ${response.error.description}`);
+          setProcessing(false);
+        });
 
-      rzp.open();
+        rzp.open();
+        console.log('Razorpay modal opened successfully');
+      } catch (razorpayError) {
+        console.error('Razorpay initialization failed:', razorpayError);
+        setError('Failed to initialize payment gateway. Please try again.');
+        setProcessing(false);
+        
+        // Show toast error
+        showError('Payment gateway initialization failed. Please try again.');
+      }
       
     } catch (error) {
       console.error('Payment processing error:', error);
       setError('Payment processing failed. Please try again.');
+      setProcessing(false);
+    }
+    } catch (outerError) {
+      console.error('Outer payment handling error:', outerError);
+      setError('An unexpected error occurred. Please try again.');
       setProcessing(false);
     }
   };
@@ -255,11 +337,22 @@ export default function PaymentPage() {
   };
 
   if (loading) {
+    console.log('=== LOADING STATE DEBUG ===');
+    console.log('Loading state:', loading);
+    console.log('Script loaded:', scriptLoaded);
+    console.log('Script timeout:', scriptTimeout);
+    console.log('Error state:', error);
+    console.log('Amount set:', amount > 0);
+    console.log('=== END LOADING DEBUG ===');
+    
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-4" />
           <p className="text-gray-600">Loading payment gateway...</p>
+          {scriptTimeout && (
+            <p className="text-red-500 mt-2 text-sm">Taking longer than expected...</p>
+          )}
         </div>
       </div>
     );
@@ -267,6 +360,12 @@ export default function PaymentPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <Script
+        src="https://checkout.razorpay.com/v1/checkout.js"
+        strategy="afterInteractive"
+        onLoad={handleScriptLoad}
+        onError={handleScriptError}
+      />
       <Header />
       <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* Header */}

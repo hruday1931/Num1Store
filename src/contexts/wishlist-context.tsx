@@ -2,9 +2,16 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 import { supabaseClient } from "@/utils/supabase/client";
-
-const supabase = supabaseClient();
 import { useAuth } from "./auth-context";
+
+// Create Supabase client only at runtime, not build time
+let supabase: ReturnType<typeof supabaseClient> | null = null;
+const getSupabase = () => {
+  if (!supabase) {
+    supabase = supabaseClient();
+  }
+  return supabase;
+};
 
 interface WishlistItem {
   id: string;
@@ -62,7 +69,10 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
     if (!user) return;
 
     try {
-      const { data, error } = await supabase
+      const client = getSupabase();
+      if (!client) return;
+      
+      const { data, error } = await client
         .from('wishlist')
         .select('*')
         .eq('user_id', user.id);
@@ -80,7 +90,10 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
         const wishlistWithProducts = await Promise.all(
           (data as WishlistItemDB[] || []).map(async (item: WishlistItemDB) => {
             try {
-              const { data: productData, error: productError } = await supabase
+              const client = getSupabase();
+              if (!client) return item;
+              
+              const { data: productData, error: productError } = await client
                 .from('products')
                 .select('id, name, price, images, description')
                 .eq('id', item.product_id)
@@ -114,6 +127,9 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
     if (!user) throw new Error('User not authenticated');
 
     try {
+      const client = getSupabase();
+      if (!client) throw new Error('Database not available');
+      
       // Check if item already exists in wishlist
       const existingItem = wishlistItems?.find(item => item.product_id === productId);
 
@@ -122,7 +138,7 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Add new item to wishlist
-      const { data, error } = await supabase
+      const { data, error } = await client
         .from('wishlist')
         .insert({
           product_id: productId,
@@ -141,7 +157,10 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
       
       // Fetch the complete item with product details
       try {
-        const { data: productData, error: productError } = await supabase
+        const client = getSupabase();
+        if (!client) return;
+        
+        const { data: productData, error: productError } = await client
           .from('products')
           .select('id, name, price, images, description')
           .eq('id', productId)
@@ -170,7 +189,10 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
     if (!user) throw new Error('User not authenticated');
 
     try {
-      const { error } = await supabase
+      const client = getSupabase();
+      if (!client) return;
+      
+      const { error } = await client
         .from('wishlist')
         .delete()
         .eq('product_id', productId)
@@ -199,7 +221,10 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
     if (!user) throw new Error('User not authenticated');
 
     try {
-      const { error } = await supabase
+      const client = getSupabase();
+      if (!client) return;
+      
+      const { error } = await client
         .from('wishlist')
         .delete()
         .eq('user_id', user.id);

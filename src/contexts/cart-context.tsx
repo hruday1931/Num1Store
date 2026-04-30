@@ -2,9 +2,17 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 import { supabaseClient } from "@/utils/supabase/client";
-
-const supabase = supabaseClient();
 import { useAuth } from "./auth-context";
+import { Database } from "@/types";
+
+// Create Supabase client only at runtime, not build time
+let supabase: ReturnType<typeof supabaseClient> | null = null;
+const getSupabase = (): ReturnType<typeof supabaseClient> | null => {
+  if (!supabase) {
+    supabase = supabaseClient();
+  }
+  return supabase;
+};
 
 export interface CartItem {
   id: string;
@@ -43,11 +51,20 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   // Initialize cart from localStorage for guest users
   useEffect(() => {
+    // Set a timeout to prevent infinite loading
+    const timeoutId = setTimeout(() => {
+      console.log('Cart context loading timeout - forcing loading to false');
+      setLoading(false);
+    }, 3000); // 3 second timeout
+
     if (user) {
-      fetchCartItems();
+      fetchCartItems().finally(() => {
+        clearTimeout(timeoutId);
+      });
     } else {
       // Load cart from localStorage for guest users
       const guestCart = localStorage.getItem('guestCart');
+      clearTimeout(timeoutId);
       if (guestCart) {
         try {
           const parsedCart = JSON.parse(guestCart);
@@ -77,7 +94,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     const cartWithProducts = await Promise.all(
       cartItems.map(async (item) => {
         try {
-          const { data: productData, error: productError } = await supabase
+          const client = getSupabase();
+          if (!client) return item;
+          
+          const { data: productData, error: productError } = await client
             .from('products')
             .select('id, name, description, price, images')
             .eq('id', item.product_id)
@@ -98,6 +118,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     );
     
     setCartItems(cartWithProducts);
+    setLoading(false);
   };
 
   const fetchCartItems = async () => {
@@ -112,8 +133,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     console.log('Cart Debug: Fetching cart items for user:', user.id);
     console.log('Cart Debug: Fetch timestamp:', new Date().toISOString());
     try {
+      const client = getSupabase();
+      if (!client) return;
+      
       // Debug: Check if we can access the cart table at all
-      const { data: allCartItems, error: allCartError } = await supabase
+      const { data: allCartItems, error: allCartError } = await client
         .from('cart')
         .select('id, user_id, product_id, quantity')
         .limit(5);
@@ -122,14 +146,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       console.log('Frontend - All Cart Error (debug):', allCartError);
       
       // Debug: Try to verify RLS is working by checking auth.uid()
-      const { data: authCheck } = await supabase
+      const { data: authCheck } = await client
         .rpc('current_user_id');
       
       console.log('Frontend - Auth UID from RPC:', authCheck);
       
       // Add cache-busting by using a timestamp parameter
       const timestamp = Date.now();
-      const { data, error } = await supabase
+      const { data, error } = await client
         .from('cart')
         .select('*')
         .eq('user_id', user.id)
@@ -160,7 +184,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           const cartWithProducts = await Promise.all(
             data.map(async (item: any) => {
               try {
-                const { data: productData, error: productError } = await supabase
+                const client = getSupabase();
+                if (!client) return item;
+                
+                const { data: productData, error: productError } = await client
                   .from('products')
                   .select('id, name, description, price, images')
                   .eq('id', item.product_id)
@@ -238,7 +265,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         await updateQuantity(existingItem.id, newQuantity);
       } else {
         // Add new item to cart
-        const { data, error } = await supabase
+        const client = getSupabase();
+        if (!client) return;
+        
+        const { data, error } = await client
           .from('cart')
           .insert({
             product_id: productId,
@@ -258,7 +288,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         
         // Fetch the complete item with product details
         try {
-          const { data: productData, error: productError } = await supabase
+          const client = getSupabase();
+          if (!client) return;
+          
+          const { data: productData, error: productError } = await client
             .from('products')
             .select('id, name, description, price, images')
             .eq('id', productId)
@@ -307,9 +340,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
     // Authenticated user - update database
     try {
-      const { error } = await (supabase as any)
+      const client = getSupabase();
+      if (!client) return;
+      
+      const { error } = await client
         .from('cart')
-        .update({ quantity })
+        .update({ quantity } as never)
         .eq('id', itemId);
 
       if (error) {
@@ -347,7 +383,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
     // Authenticated user - remove from database
     try {
-      const { error } = await supabase
+      const client = getSupabase();
+      if (!client) return;
+      
+      const { error } = await client
         .from('cart')
         .delete()
         .eq('id', itemId);
@@ -377,7 +416,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
     // Authenticated user - clear database
     try {
-      const { error } = await supabase
+      const client = getSupabase();
+      if (!client) return;
+      
+      const { error } = await client
         .from('cart')
         .delete()
         .eq('user_id', user.id);
