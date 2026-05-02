@@ -9,11 +9,27 @@ import { ToastContainer } from '@/components/ui/toast';
 import { useToast } from '@/contexts/toast-context';
 import { Vendor, Database } from '@/types';
 
+interface PickupAddress {
+  address?: string;
+  address_2?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  pin_code?: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+}
+
 interface VendorData {
   id?: string;
   user_id?: string;
   store_name?: string;
   phone_number?: string;
+  pickup_address?: PickupAddress | string;
+  shiprocket_pickup_location_id?: string;
+  pickup_location_registered?: boolean;
+  pickup_location_registered_at?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -30,7 +46,13 @@ export default function VendorSettingsPage() {
   const [shopForm, setShopForm] = useState({
     store_name: '',
     phone_number: '',
-    email: ''
+    email: '',
+    address: '',
+    address_2: '',
+    city: '',
+    state: '',
+    country: 'India',
+    pin_code: ''
   });
 
   const checkVendorAccess = useCallback(async () => {
@@ -80,10 +102,29 @@ export default function VendorSettingsPage() {
       if (typedVendor) {
         console.log('[DEBUG] Vendor data found:', typedVendor);
         setVendorData(typedVendor);
+        
+        // Parse pickup address if it exists
+        let pickupAddress: PickupAddress = {};
+        if (typedVendor.pickup_address) {
+          try {
+            pickupAddress = typeof typedVendor.pickup_address === 'string' 
+              ? JSON.parse(typedVendor.pickup_address) 
+              : typedVendor.pickup_address;
+          } catch (error) {
+            console.error('Error parsing pickup address:', error);
+          }
+        }
+        
         const formData = {
           store_name: typedVendor.store_name || '',
           phone_number: typedVendor.phone_number || '',
-          email: user.email || ''
+          email: user.email || '',
+          address: pickupAddress.address || '',
+          address_2: pickupAddress.address_2 || '',
+          city: pickupAddress.city || '',
+          state: pickupAddress.state || '',
+          country: pickupAddress.country || 'India',
+          pin_code: pickupAddress.pin_code || ''
         };
         console.log('[DEBUG] Setting form data:', formData);
         setShopForm(formData);
@@ -177,9 +218,23 @@ export default function VendorSettingsPage() {
       // For updates, use untyped client to avoid TypeScript issues
       const supabaseUntyped = (supabase as any);
       
+      // Prepare pickup address object
+      const pickupAddress = {
+        name: shopForm.store_name,
+        email: shopForm.email,
+        phone: shopForm.phone_number,
+        address: shopForm.address,
+        address_2: shopForm.address_2,
+        city: shopForm.city,
+        state: shopForm.state,
+        country: shopForm.country,
+        pin_code: shopForm.pin_code
+      };
+      
       const updateData = {
         store_name: shopForm.store_name,
         phone_number: shopForm.phone_number,
+        pickup_address: pickupAddress,
         updated_at: new Date().toISOString()
       } as any;
       
@@ -200,30 +255,88 @@ export default function VendorSettingsPage() {
       }
 
       console.log('[SUCCESS] Settings saved successfully');
+
+      // Register pickup location with Shiprocket
+      try {
+        const isUpdate = vendorData?.shiprocket_pickup_location_id ? true : false;
+        
+        const pickupResponse = await fetch('/api/shiprocket/pickup-location', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            vendorId: user.id,
+            storeName: shopForm.store_name,
+            address: pickupAddress,
+            isUpdate: isUpdate
+          }),
+        });
+
+        const pickupResult = await pickupResponse.json();
+        
+        if (pickupResponse.ok && pickupResult.success) {
+          console.log('[SUCCESS] Pickup location registered with Shiprocket:', pickupResult);
+          success(`Settings Saved! ${isUpdate ? 'Pickup location updated' : 'Pickup location registered'} with Shiprocket`);
+          setMessage({ 
+            type: 'success', 
+            text: `Settings updated successfully! ${isUpdate ? 'Pickup location updated' : 'Pickup location registered'} with Shiprocket.` 
+          });
+        } else {
+          console.error('[ERROR] Pickup location registration failed:', pickupResult);
+          success('Settings Saved (Pickup location registration failed)');
+          setMessage({ 
+            type: 'success', 
+            text: 'Settings updated successfully! However, pickup location registration with Shiprocket failed. Please try again later.' 
+          });
+        }
+      } catch (pickupError) {
+        console.error('[ERROR] Pickup location registration error:', pickupError);
+        success('Settings Saved (Pickup location registration failed)');
+        setMessage({ 
+          type: 'success', 
+          text: 'Settings updated successfully! However, pickup location registration with Shiprocket failed. Please try again later.' 
+        });
+      }
       
       // Update local state with fresh data from database
       const { data: freshVendorData } = await supabaseUntyped
         .from('vendors')
-        .select('store_name, phone_number, updated_at')
+        .select('*')
         .eq('user_id', user.id)
         .single();
       
       if (freshVendorData) {
         setVendorData(freshVendorData as VendorData);
+        
+        // Parse pickup address if it exists
+        let updatedPickupAddress: PickupAddress = {};
+        if (freshVendorData.pickup_address) {
+          try {
+            updatedPickupAddress = typeof freshVendorData.pickup_address === 'string' 
+              ? JSON.parse(freshVendorData.pickup_address) 
+              : freshVendorData.pickup_address;
+          } catch (error) {
+            console.error('Error parsing pickup address:', error);
+          }
+        }
+        
         const formData = {
           store_name: freshVendorData.store_name || '',
           phone_number: freshVendorData.phone_number || '',
-          email: user.email || ''
+          email: user.email || '',
+          address: updatedPickupAddress.address || '',
+          address_2: updatedPickupAddress.address_2 || '',
+          city: updatedPickupAddress.city || '',
+          state: updatedPickupAddress.state || '',
+          country: updatedPickupAddress.country || 'India',
+          pin_code: updatedPickupAddress.pin_code || ''
         };
         setShopForm(formData);
       }
-
-      // Show success toast
-      success('Settings Saved');
-      setMessage({ type: 'success', text: 'Settings updated successfully!' });
       
-      // Clear message after 3 seconds
-      setTimeout(() => setMessage(null), 3000);
+      // Clear message after 5 seconds (longer for pickup location messages)
+      setTimeout(() => setMessage(null), 5000);
       
     } catch (error) {
       console.error('[ERROR] Error updating settings:', error);
@@ -321,6 +434,101 @@ export default function VendorSettingsPage() {
               />
               <p className="text-xs text-gray-500 mt-1">Email cannot be changed here</p>
             </div>
+
+            <div className="border-t pt-4">
+              <h4 className="text-lg font-medium text-gray-900 mb-4">Pickup Address</h4>
+              <p className="text-sm text-gray-600 mb-4">This address will be used as your pickup location for Shiprocket shipments</p>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Address Line 1 *
+                  </label>
+                  <input
+                    type="text"
+                    name="address"
+                    value={shopForm.address}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                    placeholder="Street address, apartment, suite, etc."
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Address Line 2
+                  </label>
+                  <input
+                    type="text"
+                    name="address_2"
+                    value={shopForm.address_2}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                    placeholder="Apartment, suite, unit, building, floor, etc."
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      City *
+                    </label>
+                    <input
+                      type="text"
+                      name="city"
+                      value={shopForm.city}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                      placeholder="City"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      State *
+                    </label>
+                    <input
+                      type="text"
+                      name="state"
+                      value={shopForm.state}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                      placeholder="State"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Country *
+                    </label>
+                    <input
+                      type="text"
+                      name="country"
+                      value={shopForm.country}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                      placeholder="Country"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      PIN Code *
+                    </label>
+                    <input
+                      type="text"
+                      name="pin_code"
+                      value={shopForm.pin_code}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                      placeholder="PIN/ZIP Code"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="mt-6">
@@ -372,6 +580,35 @@ export default function VendorSettingsPage() {
             <div className="p-4 bg-green-50 rounded-lg border border-green-200">
               <p className="text-sm text-green-800 font-medium">Subscription Status</p>
               <p className="text-green-800 font-bold">Active</p>
+            </div>
+
+            <div className={`p-4 rounded-lg border ${
+              vendorData?.shiprocket_pickup_location_id 
+                ? 'bg-blue-50 border-blue-200' 
+                : 'bg-yellow-50 border-yellow-200'
+            }`}>
+              <p className={`text-sm font-medium ${
+                vendorData?.shiprocket_pickup_location_id 
+                  ? 'text-blue-800' 
+                  : 'text-yellow-800'
+              }`}>
+                Shiprocket Pickup Location
+              </p>
+              <p className={`font-bold ${
+                vendorData?.shiprocket_pickup_location_id 
+                  ? 'text-blue-800' 
+                  : 'text-yellow-800'
+              }`}>
+                {vendorData?.shiprocket_pickup_location_id 
+                  ? 'Registered' 
+                  : 'Not Registered'
+                }
+              </p>
+              {vendorData?.pickup_location_registered_at && (
+                <p className="text-xs mt-1 opacity-75">
+                  Registered: {new Date(vendorData.pickup_location_registered_at).toLocaleDateString()}
+                </p>
+              )}
             </div>
           </div>
         </div>

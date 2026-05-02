@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
         // Small delay to ensure order is fully committed
         await new Promise(resolve => setTimeout(resolve, 1000));
 
-        const syncResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/orders/sync`, {
+        const syncResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/orders/sync-multi-vendor`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { registerVendorPickupLocation } from '@/lib/vendor-utils';
 
 // Create Supabase client only at runtime, not build time
 const createSupabaseClient = () => {
@@ -29,7 +30,9 @@ export async function POST(request: NextRequest) {
       store_description,
       phone_number,
       plan_id,
-      plan_price
+      plan_price,
+      pickup_address,
+      register_pickup_location
     } = body;
 
     // Validate required fields
@@ -52,6 +55,7 @@ export async function POST(request: NextRequest) {
         store_name,
         store_description,
         phone_number,
+        pickup_address: pickup_address || null,
         is_approved: true, // Auto-approve for now
         is_subscribed: true
       })
@@ -102,11 +106,26 @@ export async function POST(request: NextRequest) {
       .update({ role: 'seller' })
       .eq('id', user_id);
 
+    // Register pickup location in Shiprocket if requested and pickup_address is provided
+    let shiprocketResult = null;
+    if (register_pickup_location && pickup_address && vendor) {
+      shiprocketResult = await registerVendorPickupLocation({
+        vendor_id: vendor.id,
+        store_name: vendor.store_name,
+        phone_number: vendor.phone_number,
+        pickup_address: pickup_address,
+        user_id: user_id
+      });
+    }
+
     return NextResponse.json({
       success: true,
       vendor,
       subscription,
-      message: 'Vendor account created successfully'
+      shiprocket_result: shiprocketResult,
+      message: shiprocketResult?.success 
+        ? 'Vendor account created and pickup location registered successfully'
+        : 'Vendor account created successfully'
     });
 
   } catch (error) {

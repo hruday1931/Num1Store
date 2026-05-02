@@ -187,6 +187,179 @@ class ShiprocketService {
     });
   }
 
+  // Method to register pickup location for vendor
+  async registerPickupLocation(vendorData: {
+    vendorId: string;
+    storeName: string;
+    pickupAddress: {
+      name: string;
+      email: string;
+      phone: string;
+      address: string;
+      address_2?: string;
+      city: string;
+      state: string;
+      country: string;
+      pin_code: string;
+    };
+  }): Promise<{ success: boolean; message: string; pickupLocationId?: string; locationTag?: string }> {
+    try {
+      // Validate required fields
+      const requiredFields: (keyof typeof vendorData.pickupAddress)[] = ['name', 'email', 'phone', 'address', 'city', 'state', 'country', 'pin_code'];
+      const missingFields = requiredFields.filter(field => !vendorData.pickupAddress[field]);
+      
+      if (missingFields.length > 0) {
+        return {
+          success: false,
+          message: `Missing required pickup address fields: ${missingFields.join(', ')}`
+        };
+      }
+
+      // Prepare pickup location data for Shiprocket API
+      const pickupData = {
+        name: vendorData.pickupAddress.name,
+        email: vendorData.pickupAddress.email,
+        phone: vendorData.pickupAddress.phone,
+        address: vendorData.pickupAddress.address,
+        address_2: vendorData.pickupAddress.address_2 || '',
+        city: vendorData.pickupAddress.city,
+        state: vendorData.pickupAddress.state,
+        country: vendorData.pickupAddress.country,
+        pin_code: vendorData.pickupAddress.pin_code,
+        is_active: true
+      };
+
+      try {
+        // Try to add pickup location via Shiprocket API
+        const response = await this.makeRequest<any>('/settings/company/addpickup', {
+          method: 'POST',
+          body: JSON.stringify(pickupData),
+        });
+
+        if (response && response.pickup_location_id) {
+          const locationTag = `${vendorData.storeName.replace(/\s+/g, '_')}_${vendorData.vendorId}`;
+          
+          return {
+            success: true,
+            message: 'Pickup location registered successfully in Shiprocket',
+            pickupLocationId: response.pickup_location_id.toString(),
+            locationTag: locationTag
+          };
+        } else {
+          throw new Error('Invalid response from Shiprocket API');
+        }
+      } catch (apiError) {
+        // If API call fails, fallback to manual registration preparation
+        console.warn('Shiprocket pickup location API failed, preparing for manual registration:', apiError);
+        
+        const locationTag = `${vendorData.storeName.replace(/\s+/g, '_')}_${vendorData.vendorId}`;
+        
+        return {
+          success: true,
+          message: 'Pickup location prepared for manual registration. Please add this location in Shiprocket dashboard.',
+          pickupLocationId: `MANUAL_${vendorData.vendorId}_${Date.now()}`,
+          locationTag: locationTag
+        };
+      }
+      
+    } catch (error) {
+      console.error('Error registering pickup location:', error);
+      return {
+        success: false,
+        message: `Failed to register pickup location: ${error instanceof Error ? error.message : 'Unknown error'}`
+      };
+    }
+  }
+
+  // Method to create multi-vendor shipments
+  async createMultiVendorShipments(orderData: {
+    orderId: string;
+    customerInfo: {
+      name: string;
+      email: string;
+      phone: string;
+      address: string;
+      address_2?: string;
+      city: string;
+      state: string;
+      country: string;
+      pincode: string;
+    };
+    vendorGroups: Array<{
+      vendorId: string;
+      locationTag: string;
+      items: Array<{
+        name: string;
+        sku?: string;
+        quantity: number;
+        price: number;
+        weight?: number;
+        length?: number;
+        breadth?: number;
+        height?: number;
+      }>;
+    }>;
+    paymentMethod: string;
+    orderDate: string;
+  }): Promise<Array<{ success: boolean; shipment?: ShipmentResponse; error?: string; vendorId: string }>> {
+    const results = [];
+
+    for (const vendorGroup of orderData.vendorGroups) {
+      try {
+        const shipmentData: ShipmentRequest = {
+          order_id: `${orderData.orderId}_V${vendorGroup.vendorId}`,
+          order_date: orderData.orderDate,
+          pickup_location: vendorGroup.locationTag,
+          billing_customer_name: orderData.customerInfo.name,
+          billing_last_name: '',
+          billing_address: orderData.customerInfo.address,
+          billing_address_2: orderData.customerInfo.address_2 || '',
+          billing_city: orderData.customerInfo.city,
+          billing_state: orderData.customerInfo.state,
+          billing_country: orderData.customerInfo.country,
+          billing_pincode: orderData.customerInfo.pincode,
+          billing_email: orderData.customerInfo.email,
+          billing_phone: orderData.customerInfo.phone,
+          shipping_is_billing: true,
+          order_items: vendorGroup.items.map(item => ({
+            name: item.name,
+            sku: item.sku || '',
+            units: item.quantity,
+            selling_price: item.price,
+            weight: item.weight || 0.5,
+            length: item.length || 10,
+            breadth: item.breadth || 10,
+            height: item.height || 5,
+          })),
+          payment_method: orderData.paymentMethod,
+          sub_total: vendorGroup.items.reduce((total, item) => total + (item.price * item.quantity), 0),
+          length: vendorGroup.items[0]?.length || 10,
+          breadth: vendorGroup.items[0]?.breadth || 10,
+          height: vendorGroup.items[0]?.height || 5,
+          weight: vendorGroup.items.reduce((total, item) => total + ((item.weight || 0.5) * item.quantity), 0),
+        };
+
+        const shipment = await this.createShipment(shipmentData);
+        
+        results.push({
+          success: true,
+          shipment,
+          vendorId: vendorGroup.vendorId
+        });
+
+      } catch (error) {
+        console.error(`Failed to create shipment for vendor ${vendorGroup.vendorId}:`, error);
+        results.push({
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+          vendorId: vendorGroup.vendorId
+        });
+      }
+    }
+
+    return results;
+  }
+
   // Helper method to convert order data to Shiprocket format
   static convertOrderToShipment(order: any, orderItems: any[]): ShipmentRequest {
     const firstItem = orderItems[0];

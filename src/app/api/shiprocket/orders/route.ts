@@ -132,98 +132,213 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get vendor information for pickup location
-    const { data: vendor } = await supabase
-      .from('vendors')
-      .select('store_name, pickup_address')
-      .eq('id', order.order_items[0]?.products?.vendor_id)
-      .single() as { data: any, error: any };
+    // Group order items by vendor to handle multi-vendor orders
+    const vendorGroups = order.order_items.reduce((groups: any, item: any) => {
+      const vendorId = item.products?.vendor_id;
+      if (!vendorId) return groups;
+      
+      if (!groups[vendorId]) {
+        groups[vendorId] = {
+          vendorId,
+          items: []
+        };
+      }
+      groups[vendorId].items.push(item);
+      return groups;
+    }, {});
 
-    if (!vendor) {
+    const vendorIds = Object.keys(vendorGroups);
+    console.log(`Order has ${vendorIds.length} vendor(s): ${vendorIds.join(', ')}`);
+
+    // Get vendor information for all vendors in this order
+    const { data: vendors } = await supabase
+      .from('vendors')
+      .select('id, store_name, pickup_address')
+      .in('id', vendorIds) as { data: any[], error: any };
+
+    if (!vendors || vendors.length === 0) {
       return NextResponse.json(
         { success: false, error: 'Vendor information not found' },
         { status: 404 }
       );
     }
 
-    // Prepare order items for Shiprocket
-    const orderItems: ShiprocketOrderItem[] = order.order_items.map((item: any) => ({
-      name: item.products.name,
-      sku: `PRD-${item.products.id.slice(-8)}`,
-      units: item.quantity,
-      selling_price: item.price,
-      // Use default dimensions if not specified
-      length: item.products.dimensions?.length || 10,
-      breadth: item.products.dimensions?.breadth || 10,
-      height: item.products.dimensions?.height || 10,
-      weight: item.products.weight || 0.5
-    }));
+    // Create vendor lookup map
+    const vendorMap = vendors.reduce((map: any, vendor: any) => {
+      map[vendor.id] = vendor;
+      return map;
+    }, {});
 
-    // Calculate total weight and dimensions
-    const totalWeight = orderItems.reduce((sum, item) => sum + (item.weight || 0.5) * item.units, 0);
-    const maxDimensions = orderItems.reduce((max, item) => ({
-      length: Math.max(max.length, item.length || 10),
-      breadth: Math.max(max.breadth, item.breadth || 10),
-      height: Math.max(max.height, item.height || 10)
-    }), { length: 10, breadth: 10, height: 10 });
+    // Create Shiprocket orders for each vendor
+    const shiprocketOrders = [];
+    
+    for (const vendorId of vendorIds) {
+      const vendor = vendorMap[vendorId];
+      const vendorItems = vendorGroups[vendorId].items;
+      
+      if (!vendor) {
+        console.error(`Vendor ${vendorId} not found in vendor map`);
+        continue;
+      }
 
-    // Prepare Shiprocket order data
-    const shiprocketOrderData: ShiprocketOrderData = {
-      order_id: `ORD-${orderId.slice(-8)}`,
-      order_date: new Date(order.created_at).toISOString().split('T')[0],
-      pickup_location: vendor.pickup_address || vendor.store_name || 'Default Warehouse',
-      billing_customer_name: order.profiles?.full_name || 'Customer',
-      billing_address: shippingAddress.address || shippingAddress.street || 'N/A',
-      billing_city: shippingAddress.city || 'N/A',
-      billing_state: shippingAddress.state || 'N/A',
-      billing_pincode: shippingAddress.pincode || shippingAddress.postal_code || '000000',
-      billing_country: shippingAddress.country || 'India',
-      billing_email: order.profiles?.email || 'customer@example.com',
-      billing_phone: shippingAddress.phone || order.profiles?.phone || '0000000000',
-      shipping_is_billing: true, // Use billing address for shipping
-      order_items: orderItems,
-      payment_method: order.payment_method === 'cod' ? 'COD' : 'Prepaid',
-      sub_total: order.total_amount,
-      length: maxDimensions.length,
-      breadth: maxDimensions.breadth,
-      height: maxDimensions.height,
-      weight: totalWeight
-    };
+      // Prepare order items for this vendor
+      const orderItems: ShiprocketOrderItem[] = vendorItems.map((item: any) => ({
+        name: item.products.name,
+        sku: `PRD-${item.products.id.slice(-8)}`,
+        units: item.quantity,
+        selling_price: item.price,
+        // Use default dimensions if not specified
+        length: item.products.dimensions?.length || 10,
+        breadth: item.products.dimensions?.breadth || 10,
+        height: item.products.dimensions?.height || 10,
+        weight: item.products.weight || 0.5
+      }));
+
+      // Calculate total weight and dimensions for this vendor's items
+      const totalWeight = orderItems.reduce((sum, item) => sum + (item.weight || 0.5) * item.units, 0);
+      const maxDimensions = orderItems.reduce((max, item) => ({
+        length: Math.max(max.length, item.length || 10),
+        breadth: Math.max(max.breadth, item.breadth || 10),
+        height: Math.max(max.height, item.height || 10)
+      }), { length: 10, breadth: 10, height: 10 });
+
+      // Format pickup location from vendor's pickup_address
+      let pickupLocation = vendor.store_name || 'Default Warehouse';
+      if (vendor.pickup_address) {
+        const pickupAddr = typeof vendor.pickup_address === 'string' 
+          ? JSON.parse(vendor.pickup_address)
+          : vendor.pickup_address;
+        
+        pickupLocation = [
+          pickupAddr.address || pickupAddr.street || '',
+          pickupAddr.city || '',
+          pickupAddr.state || '',
+          pickupAddr.pin_code || pickupAddr.postal_code || ''
+        ].filter(Boolean).join(', ');
+        
+        if (!pickupLocation) {
+          pickupLocation = vendor.store_name || 'Default Warehouse';
+        }
+      }
+
+      // Prepare Shiprocket order data for this vendor
+      const shiprocketOrderData: ShiprocketOrderData = {
+        order_id: `ORD-${orderId.slice(-8)}-V${vendorId.slice(-4)}`,
+        order_date: new Date(order.created_at).toISOString().split('T')[0],
+        pickup_location: pickupLocation,
+        billing_customer_name: order.profiles?.full_name || 'Customer',
+        billing_address: shippingAddress.address || shippingAddress.street || 'N/A',
+        billing_city: shippingAddress.city || 'N/A',
+        billing_state: shippingAddress.state || 'N/A',
+        billing_pincode: shippingAddress.pincode || shippingAddress.postal_code || '000000',
+        billing_country: shippingAddress.country || 'India',
+        billing_email: order.profiles?.email || 'customer@example.com',
+        billing_phone: shippingAddress.phone || order.profiles?.phone || '0000000000',
+        shipping_is_billing: true, // Use billing address for shipping
+        order_items: orderItems,
+        payment_method: order.payment_method === 'cod' ? 'COD' : 'Prepaid',
+        sub_total: orderItems.reduce((sum, item) => sum + (item.selling_price * item.units), 0),
+        length: maxDimensions.length,
+        breadth: maxDimensions.breadth,
+        height: maxDimensions.height,
+        weight: totalWeight
+      };
+
+      shiprocketOrders.push({
+        vendorId,
+        orderData: shiprocketOrderData,
+        items: vendorItems
+      });
+    }
+
+    if (shiprocketOrders.length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'No valid vendor orders found' },
+        { status: 400 }
+      );
+    }
+
+    console.log(`Creating ${shiprocketOrders.length} Shiprocket order(s) for multi-vendor order`);
 
     // Get Shiprocket token
     const token = await getShiprocketToken();
 
-    // Create order in Shiprocket
-    const shiprocketResponse = await fetch(SHIPROCKET_ORDERS_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify(shiprocketOrderData)
-    });
+    // Create orders in Shiprocket for each vendor
+    const shiprocketResults = [];
+    const shiprocketOrderIds = [];
+    
+    for (const shiprocketOrder of shiprocketOrders) {
+      try {
+        const response = await fetch(SHIPROCKET_ORDERS_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify(shiprocketOrder.orderData)
+        });
 
-    if (!shiprocketResponse.ok) {
-      const errorData = await shiprocketResponse.text();
-      console.error('Shiprocket order creation failed:', {
-        status: shiprocketResponse.status,
-        statusText: shiprocketResponse.statusText,
-        response: errorData
-      });
-      
+        if (!response.ok) {
+          const errorData = await response.text();
+          console.error(`Shiprocket order creation failed for vendor ${shiprocketOrder.vendorId}:`, {
+            status: response.status,
+            statusText: response.statusText,
+            response: errorData
+          });
+          
+          shiprocketResults.push({
+            vendorId: shiprocketOrder.vendorId,
+            success: false,
+            error: `Failed to create order: HTTP ${response.status}`,
+            orderData: shiprocketOrder.orderData
+          });
+          continue;
+        }
+
+        const result = await response.json();
+        
+        shiprocketResults.push({
+          vendorId: shiprocketOrder.vendorId,
+          success: true,
+          shiprocketOrderId: result.order_id?.toString(),
+          shipmentId: result.shipment_id,
+          status: result.status,
+          orderData: shiprocketOrder.orderData
+        });
+        
+        if (result.order_id) {
+          shiprocketOrderIds.push(result.order_id.toString());
+        }
+        
+        console.log(`Shiprocket order created successfully for vendor ${shiprocketOrder.vendorId}:`, result.order_id);
+        
+      } catch (error) {
+        console.error(`Error creating Shiprocket order for vendor ${shiprocketOrder.vendorId}:`, error);
+        shiprocketResults.push({
+          vendorId: shiprocketOrder.vendorId,
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+          orderData: shiprocketOrder.orderData
+        });
+      }
+    }
+
+    // Check if at least one order was created successfully
+    const successfulOrders = shiprocketResults.filter(r => r.success);
+    const failedOrders = shiprocketResults.filter(r => !r.success);
+    
+    if (successfulOrders.length === 0) {
       return NextResponse.json(
         { 
           success: false, 
-          error: 'Failed to create order in Shiprocket',
-          details: `HTTP ${shiprocketResponse.status}: ${shiprocketResponse.statusText}`
+          error: 'Failed to create any Shiprocket orders',
+          details: failedOrders.map(f => ({ vendorId: f.vendorId, error: f.error }))
         },
-        { status: shiprocketResponse.status }
+        { status: 500 }
       );
     }
 
-    const shiprocketResult = await shiprocketResponse.json();
-
-    // Update order with Shiprocket details
+    // Update order with Shiprocket details (store all order IDs as JSON array)
     const { error: updateError } = await (supabase as unknown as {
       from: (table: string) => any;
       update: (data: any) => any;
@@ -231,8 +346,8 @@ export async function POST(request: NextRequest) {
     })
       .from('orders')
       .update({
-        shiprocket_order_id: shiprocketResult.order_id?.toString(),
-        pickup_status: 'requested',
+        shiprocket_order_id: JSON.stringify(shiprocketOrderIds),
+        pickup_status: successfulOrders.length === shiprocketOrders.length ? 'requested' : 'partial',
         updated_at: new Date().toISOString()
       })
       .eq('id', orderId);
@@ -242,14 +357,15 @@ export async function POST(request: NextRequest) {
       // Don't fail the response, but log the error
     }
 
-    console.log('Shiprocket order created successfully:', shiprocketResult.order_id);
-
     return NextResponse.json({
       success: true,
-      shiprocketOrderId: shiprocketResult.order_id,
-      shipmentId: shiprocketResult.shipment_id,
-      status: shiprocketResult.status,
-      message: 'Order successfully created in Shiprocket'
+      message: `Successfully created ${successfulOrders.length} Shiprocket order(s) for ${shiprocketOrders.length} vendor(s)`,
+      results: shiprocketResults,
+      totalOrders: shiprocketOrders.length,
+      successfulOrders: successfulOrders.length,
+      failedOrders: failedOrders.length,
+      shiprocketOrderIds: shiprocketOrderIds,
+      pickupStatus: successfulOrders.length === shiprocketOrders.length ? 'requested' : 'partial'
     });
 
   } catch (error) {

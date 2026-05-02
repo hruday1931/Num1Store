@@ -51,88 +51,144 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!order.shiprocket_order_id) {
+    // Parse shiprocket_order_id to handle both single string and JSON array
+    let shiprocketOrderIds: string[] = [];
+    try {
+      if (order.shiprocket_order_id) {
+        // Try to parse as JSON array first
+        const parsed = JSON.parse(order.shiprocket_order_id);
+        shiprocketOrderIds = Array.isArray(parsed) ? parsed : [order.shiprocket_order_id];
+      }
+    } catch (error) {
+      // If parsing fails, treat it as a single order ID
+      shiprocketOrderIds = [order.shiprocket_order_id];
+    }
+
+    if (shiprocketOrderIds.length === 0) {
       return NextResponse.json(
         { success: false, error: 'Order must be created in Shiprocket first' },
         { status: 400 }
       );
     }
 
+    console.log(`Tracking ${shiprocketOrderIds.length} Shiprocket order(s) for order ${orderId}`);
+
     // Get Shiprocket token
     const token = await getShiprocketToken();
 
-    // Fetch tracking information
-    const trackingResponse = await fetch(`${SHIPROCKET_TRACKING_URL}/${order.shiprocket_order_id}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      }
-    });
+    // Fetch tracking information for all Shiprocket orders
+    const trackingResults = [];
+    
+    for (const shiprocketOrderId of shiprocketOrderIds) {
+      try {
+        const trackingResponse = await fetch(`${SHIPROCKET_TRACKING_URL}/${shiprocketOrderId}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          }
+        });
 
-    if (!trackingResponse.ok) {
-      const errorData = await trackingResponse.text();
-      console.error('Shiprocket tracking fetch failed:', {
-        status: trackingResponse.status,
-        statusText: trackingResponse.statusText,
-        response: errorData
-      });
-      
+        if (!trackingResponse.ok) {
+          const errorData = await trackingResponse.text();
+          console.error(`Shiprocket tracking fetch failed for order ${shiprocketOrderId}:`, {
+            status: trackingResponse.status,
+            statusText: trackingResponse.statusText,
+            response: errorData
+          });
+          
+          trackingResults.push({
+            shiprocketOrderId,
+            success: false,
+            error: `Failed to fetch tracking: HTTP ${trackingResponse.status}`
+          });
+          continue;
+        }
+
+        const trackingData = await trackingResponse.json();
+        
+        trackingResults.push({
+          shiprocketOrderId,
+          success: true,
+          trackingData: trackingData.tracking_data,
+          awbCode: trackingData.awb_code || trackingData.tracking_data?.awb_code,
+          currentStatus: trackingData.tracking_data?.shipment_status,
+          estimatedDelivery: trackingData.tracking_data?.etd
+        });
+        
+      } catch (error) {
+        console.error(`Error fetching tracking for order ${shiprocketOrderId}:`, error);
+        trackingResults.push({
+          shiprocketOrderId,
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+    }
+
+    const successfulTracking = trackingResults.filter(r => r.success);
+    const failedTracking = trackingResults.filter(r => !r.success);
+
+    if (successfulTracking.length === 0) {
       return NextResponse.json(
         { 
           success: false, 
-          error: 'Failed to fetch tracking information from Shiprocket',
-          details: `HTTP ${trackingResponse.status}: ${trackingResponse.statusText}`
+          error: 'Failed to fetch tracking information for any Shiprocket order',
+          details: failedTracking.map(f => ({ shiprocketOrderId: f.shiprocketOrderId, error: f.error }))
         },
-        { status: trackingResponse.status }
+        { status: 500 }
       );
     }
 
-    const trackingData = await trackingResponse.json();
+    // Aggregate tracking information
+    const awbCodes = successfulTracking
+      .map(r => r.awbCode)
+      .filter(Boolean);
+    
+    const statuses = successfulTracking
+      .map(r => r.currentStatus)
+      .filter(Boolean);
+    
+    // Determine overall status based on most advanced status
+    let overallStatus = order.status;
+    if (statuses.length > 0) {
+      const hasDelivered = statuses.some(s => s.toLowerCase() === 'delivered');
+      const hasOutForDelivery = statuses.some(s => s.toLowerCase() === 'out for delivery');
+      const hasInTransit = statuses.some(s => ['in transit', 'dispatched'].includes(s.toLowerCase()));
+      
+      if (hasDelivered) {
+        overallStatus = 'delivered';
+      } else if (hasOutForDelivery) {
+        overallStatus = 'shipped';
+      } else if (hasInTransit && order.status === 'processing') {
+        overallStatus = 'shipped';
+      }
+    }
 
-    // Extract AWB code and tracking information
-    const awbCode = trackingData.awb_code || trackingData.tracking_data?.awb_code;
-    const currentStatus = trackingData.tracking_data?.shipment_status;
-    const estimatedDelivery = trackingData.tracking_data?.etd;
-
-    // Update order with tracking information
+    // Prepare update data
     const updateData: any = {
       updated_at: new Date().toISOString()
     };
 
-    if (awbCode && awbCode !== order.awb_code) {
-      updateData.awb_code = awbCode;
+    // Store multiple AWB codes as JSON array
+    if (awbCodes.length > 0) {
+      updateData.awb_code = JSON.stringify(awbCodes);
     }
 
-    if (estimatedDelivery) {
-      updateData.estimated_delivery = estimatedDelivery;
+    // Store estimated delivery (use the latest one)
+    const deliveryDates = successfulTracking
+      .map(r => r.estimatedDelivery)
+      .filter(Boolean);
+    
+    if (deliveryDates.length > 0) {
+      updateData.estimated_delivery = deliveryDates[deliveryDates.length - 1];
     }
 
-    // Map Shiprocket status to our status
-    let newOrderStatus = order.status;
-    if (currentStatus) {
-      switch (currentStatus.toLowerCase()) {
-        case 'delivered':
-          newOrderStatus = 'delivered';
-          updateData.delivered_at = new Date().toISOString();
-          break;
-        case 'in transit':
-        case 'dispatched':
-          if (order.status === 'processing') {
-            newOrderStatus = 'shipped';
-          }
-          break;
-        case 'out for delivery':
-          newOrderStatus = 'shipped';
-          break;
-        default:
-          // Keep existing status for other cases
-          break;
+    if (overallStatus !== order.status) {
+      updateData.status = overallStatus;
+      if (overallStatus === 'delivered') {
+        updateData.delivered_at = new Date().toISOString();
       }
-    }
-
-    if (newOrderStatus !== order.status) {
-      updateData.status = newOrderStatus;
     }
 
     // Update order in database
@@ -160,11 +216,15 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      awbCode: awbCode,
-      trackingData: trackingData.tracking_data,
-      orderStatus: newOrderStatus,
-      statusUpdated: newOrderStatus !== order.status,
-      message: 'Tracking information updated successfully'
+      message: `Tracking information updated for ${successfulTracking.length} Shiprocket order(s)`,
+      results: trackingResults,
+      totalOrders: shiprocketOrderIds.length,
+      successfulTracking: successfulTracking.length,
+      failedTracking: failedTracking.length,
+      awbCodes: awbCodes,
+      orderStatus: overallStatus,
+      statusUpdated: overallStatus !== order.status,
+      estimatedDelivery: deliveryDates.length > 0 ? deliveryDates[deliveryDates.length - 1] : null
     });
 
   } catch (error) {
@@ -210,41 +270,82 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    if (!order.awb_code) {
+    // Parse awb_code to handle both single string and JSON array
+    let awbCodes: string[] = [];
+    try {
+      if (order.awb_code) {
+        // Try to parse as JSON array first
+        const parsed = JSON.parse(order.awb_code);
+        awbCodes = Array.isArray(parsed) ? parsed : [order.awb_code];
+      }
+    } catch (error) {
+      // If parsing fails, treat it as a single AWB code
+      awbCodes = [order.awb_code];
+    }
+
+    if (awbCodes.length === 0) {
       return NextResponse.json(
         { success: false, error: 'No AWB code available for this order' },
         { status: 400 }
       );
     }
 
+    console.log(`Fetching tracking for ${awbCodes.length} AWB code(s) for order ${orderId}`);
+
     // Get Shiprocket token
     const token = await getShiprocketToken();
 
-    // Fetch tracking information using AWB code
-    const trackingResponse = await fetch(`${SHIPROCKET_TRACKING_URL}/${order.awb_code}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      }
-    });
+    // Fetch tracking information for all AWB codes
+    const trackingResults = [];
+    
+    for (const awbCode of awbCodes) {
+      try {
+        const trackingResponse = await fetch(`${SHIPROCKET_TRACKING_URL}/${awbCode}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          }
+        });
 
-    if (!trackingResponse.ok) {
-      return NextResponse.json(
-        { 
-          success: false, 
-          error: 'Failed to fetch tracking information' 
-        },
-        { status: trackingResponse.status }
-      );
+        if (!trackingResponse.ok) {
+          trackingResults.push({
+            awbCode,
+            success: false,
+            error: `Failed to fetch tracking: HTTP ${trackingResponse.status}`
+          });
+          continue;
+        }
+
+        const trackingData = await trackingResponse.json();
+        
+        trackingResults.push({
+          awbCode,
+          success: true,
+          trackingData: trackingData.tracking_data
+        });
+        
+      } catch (error) {
+        console.error(`Error fetching tracking for AWB ${awbCode}:`, error);
+        trackingResults.push({
+          awbCode,
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
     }
 
-    const trackingData = await trackingResponse.json();
+    const successfulTracking = trackingResults.filter(r => r.success);
+    const failedTracking = trackingResults.filter(r => !r.success);
 
     return NextResponse.json({
       success: true,
-      trackingData: trackingData.tracking_data,
-      awbCode: order.awb_code
+      message: `Fetched tracking for ${successfulTracking.length} AWB code(s)`,
+      results: trackingResults,
+      totalAWBCodes: awbCodes.length,
+      successfulTracking: successfulTracking.length,
+      failedTracking: failedTracking.length,
+      awbCodes: awbCodes
     });
 
   } catch (error) {
