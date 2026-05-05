@@ -26,6 +26,12 @@ interface VendorData {
   user_id?: string;
   store_name?: string;
   phone_number?: string;
+  address_line_1?: string;
+  address_line_2?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  phone?: string;
   pickup_address?: PickupAddress | string;
   shiprocket_pickup_location_id?: string;
   pickup_location_registered?: boolean;
@@ -103,28 +109,16 @@ export default function VendorSettingsPage() {
         console.log('[DEBUG] Vendor data found:', typedVendor);
         setVendorData(typedVendor);
         
-        // Parse pickup address if it exists
-        let pickupAddress: PickupAddress = {};
-        if (typedVendor.pickup_address) {
-          try {
-            pickupAddress = typeof typedVendor.pickup_address === 'string' 
-              ? JSON.parse(typedVendor.pickup_address) 
-              : typedVendor.pickup_address;
-          } catch (error) {
-            console.error('Error parsing pickup address:', error);
-          }
-        }
-        
         const formData = {
           store_name: typedVendor.store_name || '',
           phone_number: typedVendor.phone_number || '',
           email: user.email || '',
-          address: pickupAddress.address || '',
-          address_2: pickupAddress.address_2 || '',
-          city: pickupAddress.city || '',
-          state: pickupAddress.state || '',
-          country: pickupAddress.country || 'India',
-          pin_code: pickupAddress.pin_code || ''
+          address: typedVendor.address_line_1 || '',
+          address_2: typedVendor.address_line_2 || '',
+          city: typedVendor.city || '',
+          state: typedVendor.state || '',
+          country: 'India',
+          pin_code: typedVendor.pincode || ''
         };
         console.log('[DEBUG] Setting form data:', formData);
         setShopForm(formData);
@@ -218,7 +212,7 @@ export default function VendorSettingsPage() {
       // For updates, use untyped client to avoid TypeScript issues
       const supabaseUntyped = (supabase as any);
       
-      // Prepare pickup address object
+      // Prepare pickup address object for Shiprocket API
       const pickupAddress = {
         name: shopForm.store_name,
         email: shopForm.email,
@@ -231,10 +225,16 @@ export default function VendorSettingsPage() {
         pin_code: shopForm.pin_code
       };
       
+      // Update vendor settings using separate columns
       const updateData = {
         store_name: shopForm.store_name,
         phone_number: shopForm.phone_number,
-        pickup_address: pickupAddress,
+        address_line_1: shopForm.address,
+        address_line_2: shopForm.address_2,
+        city: shopForm.city,
+        state: shopForm.state,
+        pincode: shopForm.pin_code,
+        phone: shopForm.phone_number,
         updated_at: new Date().toISOString()
       } as any;
       
@@ -309,28 +309,16 @@ export default function VendorSettingsPage() {
       if (freshVendorData) {
         setVendorData(freshVendorData as VendorData);
         
-        // Parse pickup address if it exists
-        let updatedPickupAddress: PickupAddress = {};
-        if (freshVendorData.pickup_address) {
-          try {
-            updatedPickupAddress = typeof freshVendorData.pickup_address === 'string' 
-              ? JSON.parse(freshVendorData.pickup_address) 
-              : freshVendorData.pickup_address;
-          } catch (error) {
-            console.error('Error parsing pickup address:', error);
-          }
-        }
-        
         const formData = {
           store_name: freshVendorData.store_name || '',
           phone_number: freshVendorData.phone_number || '',
           email: user.email || '',
-          address: updatedPickupAddress.address || '',
-          address_2: updatedPickupAddress.address_2 || '',
-          city: updatedPickupAddress.city || '',
-          state: updatedPickupAddress.state || '',
-          country: updatedPickupAddress.country || 'India',
-          pin_code: updatedPickupAddress.pin_code || ''
+          address: freshVendorData.address_line_1 || '',
+          address_2: freshVendorData.address_line_2 || '',
+          city: freshVendorData.city || '',
+          state: freshVendorData.state || '',
+          country: 'India',
+          pin_code: freshVendorData.pincode || ''
         };
         setShopForm(formData);
       }
@@ -400,7 +388,7 @@ export default function VendorSettingsPage() {
                 name="store_name"
                 value={shopForm.store_name}
                 onChange={handleInputChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-black placeholder:text-gray-500 bg-white"
                 placeholder="Enter your store name"
               />
             </div>
@@ -414,7 +402,7 @@ export default function VendorSettingsPage() {
                 name="phone_number"
                 value={shopForm.phone_number}
                 onChange={handleInputChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-black placeholder:text-gray-500 bg-white"
                 placeholder="Enter your phone number"
               />
             </div>
@@ -428,7 +416,7 @@ export default function VendorSettingsPage() {
                 name="email"
                 value={shopForm.email}
                 onChange={handleInputChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-black placeholder:text-gray-500"
                 placeholder="Your email address"
                 disabled
               />
@@ -449,7 +437,7 @@ export default function VendorSettingsPage() {
                     name="address"
                     value={shopForm.address}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-black placeholder:text-gray-500 bg-white"
                     placeholder="Street address, apartment, suite, etc."
                   />
                 </div>
@@ -463,7 +451,7 @@ export default function VendorSettingsPage() {
                     name="address_2"
                     value={shopForm.address_2}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-black placeholder:text-gray-500 bg-white"
                     placeholder="Apartment, suite, unit, building, floor, etc."
                   />
                 </div>
@@ -478,7 +466,7 @@ export default function VendorSettingsPage() {
                       name="city"
                       value={shopForm.city}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-black placeholder:text-gray-500 bg-white"
                       placeholder="City"
                     />
                   </div>
@@ -492,7 +480,7 @@ export default function VendorSettingsPage() {
                       name="state"
                       value={shopForm.state}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-black placeholder:text-gray-500 bg-white"
                       placeholder="State"
                     />
                   </div>
@@ -508,7 +496,7 @@ export default function VendorSettingsPage() {
                       name="country"
                       value={shopForm.country}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-black placeholder:text-gray-500 bg-white"
                       placeholder="Country"
                     />
                   </div>
@@ -522,7 +510,7 @@ export default function VendorSettingsPage() {
                       name="pin_code"
                       value={shopForm.pin_code}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-black placeholder:text-gray-500 bg-white"
                       placeholder="PIN/ZIP Code"
                     />
                   </div>

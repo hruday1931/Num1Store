@@ -153,7 +153,7 @@ export async function POST(request: NextRequest) {
     // Get vendor information for all vendors in this order
     const { data: vendors } = await supabase
       .from('vendors')
-      .select('id, store_name, pickup_address')
+      .select('id, store_name, address_line_1, address_line_2, city, state, pincode')
       .in('id', vendorIds) as { data: any[], error: any };
 
     if (!vendors || vendors.length === 0) {
@@ -202,24 +202,65 @@ export async function POST(request: NextRequest) {
         height: Math.max(max.height, item.height || 10)
       }), { length: 10, breadth: 10, height: 10 });
 
-      // Format pickup location from vendor's pickup_address
+      // Format pickup location from vendor's address columns
       let pickupLocation = vendor.store_name || 'Default Warehouse';
-      if (vendor.pickup_address) {
-        const pickupAddr = typeof vendor.pickup_address === 'string' 
-          ? JSON.parse(vendor.pickup_address)
-          : vendor.pickup_address;
-        
-        pickupLocation = [
-          pickupAddr.address || pickupAddr.street || '',
-          pickupAddr.city || '',
-          pickupAddr.state || '',
-          pickupAddr.pin_code || pickupAddr.postal_code || ''
-        ].filter(Boolean).join(', ');
-        
-        if (!pickupLocation) {
-          pickupLocation = vendor.store_name || 'Default Warehouse';
+      
+      // Sanitize pickup location name - remove special characters and spaces
+      pickupLocation = pickupLocation
+        .replace(/[^a-zA-Z0-9\s]/g, '') // Remove special characters except spaces
+        .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+        .trim()
+        .substring(0, 50); // Limit to 50 characters
+      
+      // Build address from separate columns
+      const addressParts = [
+        vendor.address_line_1 || '',
+        vendor.address_line_2 || '',
+        vendor.city || '',
+        vendor.state || '',
+        vendor.pincode || ''
+      ].filter(Boolean);
+      
+      if (addressParts.length > 0) {
+        const fullAddress = addressParts.join(', ');
+        // Use sanitized address if pickup location is just default
+        if (pickupLocation === 'Default Warehouse') {
+          pickupLocation = fullAddress
+            .replace(/[^a-zA-Z0-9\s]/g, '')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .substring(0, 50);
         }
       }
+
+      // Format phone number to exactly 10 digits (no +, no country code)
+      const formatPhoneNumber = (phone: string): string => {
+        if (!phone) return '0000000000';
+        
+        // Remove all non-digit characters
+        const digitsOnly = phone.replace(/\D/g, '');
+        
+        // Take last 10 digits (handles cases with country code)
+        if (digitsOnly.length >= 10) {
+          return digitsOnly.slice(-10);
+        }
+        
+        // If less than 10 digits, pad with zeros
+        return digitsOnly.padStart(10, '0');
+      };
+
+      // Format pincode - ensure it's a string with exactly 6 digits
+      const formatPincode = (pincode: string | number): string => {
+        if (!pincode) return '000000';
+        
+        const pincodeStr = String(pincode).replace(/\D/g, '');
+        
+        if (pincodeStr.length >= 6) {
+          return pincodeStr.slice(0, 6);
+        }
+        
+        return pincodeStr.padStart(6, '0');
+      };
 
       // Prepare Shiprocket order data for this vendor
       const shiprocketOrderData: ShiprocketOrderData = {
@@ -230,10 +271,10 @@ export async function POST(request: NextRequest) {
         billing_address: shippingAddress.address || shippingAddress.street || 'N/A',
         billing_city: shippingAddress.city || 'N/A',
         billing_state: shippingAddress.state || 'N/A',
-        billing_pincode: shippingAddress.pincode || shippingAddress.postal_code || '000000',
+        billing_pincode: formatPincode(shippingAddress.pincode || shippingAddress.postal_code || '000000'),
         billing_country: shippingAddress.country || 'India',
         billing_email: order.profiles?.email || 'customer@example.com',
-        billing_phone: shippingAddress.phone || order.profiles?.phone || '0000000000',
+        billing_phone: formatPhoneNumber(shippingAddress.phone || order.profiles?.phone || '0000000000'),
         shipping_is_billing: true, // Use billing address for shipping
         order_items: orderItems,
         payment_method: order.payment_method === 'cod' ? 'COD' : 'Prepaid',
@@ -269,6 +310,20 @@ export async function POST(request: NextRequest) {
     
     for (const shiprocketOrder of shiprocketOrders) {
       try {
+        // Log the exact data being sent to Shiprocket for debugging
+        console.log(`Sending Shiprocket order for vendor ${shiprocketOrder.vendorId}:`, {
+          url: SHIPROCKET_ORDERS_URL,
+          orderData: shiprocketOrder.orderData,
+          dataSummary: {
+            orderId: shiprocketOrder.orderData.order_id,
+            pickupLocation: shiprocketOrder.orderData.pickup_location,
+            billingPhone: shiprocketOrder.orderData.billing_phone,
+            billingPincode: shiprocketOrder.orderData.billing_pincode,
+            paymentMethod: shiprocketOrder.orderData.payment_method,
+            itemCount: shiprocketOrder.orderData.order_items.length
+          }
+        });
+
         const response = await fetch(SHIPROCKET_ORDERS_URL, {
           method: 'POST',
           headers: {
@@ -280,16 +335,29 @@ export async function POST(request: NextRequest) {
 
         if (!response.ok) {
           const errorData = await response.text();
+          let errorJson = null;
+          
+          try {
+            errorJson = JSON.parse(errorData);
+          } catch (e) {
+            // Keep errorData as text if it's not valid JSON
+          }
+          
           console.error(`Shiprocket order creation failed for vendor ${shiprocketOrder.vendorId}:`, {
             status: response.status,
             statusText: response.statusText,
-            response: errorData
+            errorResponse: errorJson || errorData,
+            orderData: shiprocketOrder.orderData,
+            pickupLocation: shiprocketOrder.orderData.pickup_location,
+            billingPhone: shiprocketOrder.orderData.billing_phone,
+            billingPincode: shiprocketOrder.orderData.billing_pincode
           });
           
           shiprocketResults.push({
             vendorId: shiprocketOrder.vendorId,
             success: false,
-            error: `Failed to create order: HTTP ${response.status}`,
+            error: `Failed to create order: HTTP ${response.status} - ${errorJson?.message || response.statusText}`,
+            errorDetails: errorJson || errorData,
             orderData: shiprocketOrder.orderData
           });
           continue;
