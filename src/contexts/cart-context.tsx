@@ -145,11 +145,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       console.log('Frontend - All Cart Items (debug):', allCartItems);
       console.log('Frontend - All Cart Error (debug):', allCartError);
       
-      // Debug: Try to verify RLS is working by checking auth.uid()
-      const { data: authCheck } = await client
-        .rpc('current_user_id');
-      
-      console.log('Frontend - Auth UID from RPC:', authCheck);
+      // Debug: User ID is already available from auth context
+      console.log('Frontend - Auth UID from context:', user.id);
       
       // Add cache-busting by using a timestamp parameter
       const timestamp = Date.now();

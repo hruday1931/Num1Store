@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider, CartProvider, WishlistProvider, ToastProvider } from "@/contexts";
@@ -17,7 +17,6 @@ export const metadata: Metadata = {
   title: "Num1Store - Multi-Vendor E-commerce Marketplace",
   description: "Your trusted multi-vendor marketplace connecting quality sellers with discerning customers. Shop thousands of products from verified vendors.",
   manifest: "/manifest.json",
-  themeColor: "#ec4899",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
@@ -37,6 +36,10 @@ export const metadata: Metadata = {
     title: "Num1Store - Multi-Vendor E-commerce Marketplace",
     description: "Your trusted multi-vendor marketplace connecting quality sellers with discerning customers.",
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#ec4899",
 };
 
 export default function RootLayout({
