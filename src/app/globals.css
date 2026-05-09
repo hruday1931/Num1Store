@@ -94,9 +94,11 @@ body {
   }
 }
 
-/* Mobile safe area padding */
-.safe-area-top {
-  padding-top: env(safe-area-inset-top);
+/* Mobile safe area padding - only apply on screens smaller than 768px */
+@media (max-width: 767px) {
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top);
+  }
 }
 
 .safe-area-bottom {

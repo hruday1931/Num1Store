@@ -82,7 +82,7 @@ export function Header() {
   ];
 
   return (
-    <header className="bg-pink-500 shadow-md border-b border-pink-600 sticky top-0 z-40">
+    <header className="bg-pink-500 shadow-md border-b border-pink-600 sticky top-0 z-40 md:pt-0 safe-area-top">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-14">
           {/* Logo */}
