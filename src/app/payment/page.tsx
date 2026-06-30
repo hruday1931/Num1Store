@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { CreditCard, ArrowLeft, CheckCircle, AlertCircle, Shield, Truck, Loader2, Check } from 'lucide-react';
 import { safeFetch } from '@/utils/fetch-wrapper';
 import { useToast } from '@/contexts/toast-context';
+import { supabase } from '@/lib/supabase';
 
 // Razorpay key constant defined outside component
 const RZP_KEY = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID?.trim();
@@ -23,7 +24,7 @@ declare global {
 }
 
 export default function PaymentPage() {
-  const { user, session } = useAuth();
+  const { user } = useAuth();
   const router = useRouter();
   const { error: showError } = useToast();
   const [loading, setLoading] = useState(true);
@@ -33,12 +34,36 @@ export default function PaymentPage() {
   const [error, setError] = useState<string | null>(null);
   const [shippingAddress, setShippingAddress] = useState('');
   const [scriptTimeout, setScriptTimeout] = useState(false);
+  const [idToken, setIdToken] = useState<string | null>(null);
 
   // Debug console logs for environment variable
   console.log('=== Razorpay Debug Info ===');
   console.log('NEXT_PUBLIC_RAZORPAY_KEY_ID:', process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID?.trim());
   console.log('RZP_KEY constant:', RZP_KEY);
   console.log('Environment check:', typeof process !== 'undefined' && process.env);
+
+  useEffect(() => {
+    // Get Supabase session token for authentication
+    const getToken = async () => {
+      if (user) {
+        try {
+          const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+          if (sessionError || !session || !session.access_token) {
+            console.error('Session error:', sessionError);
+            setIdToken(null);
+            return;
+          }
+          setIdToken(session.access_token);
+        } catch (error) {
+          console.error('Error getting session token:', error);
+          setIdToken(null);
+        }
+      } else {
+        setIdToken(null);
+      }
+    };
+    getToken();
+  }, [user]);
 
   useEffect(() => {
     // Set timeout for script loading
@@ -204,7 +229,7 @@ export default function PaymentPage() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session?.access_token || ''}`,
+            'Authorization': `Bearer ${idToken || ''}`,
           },
           body: JSON.stringify({
             amount: amountInPaise,
@@ -259,7 +284,7 @@ export default function PaymentPage() {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${session?.access_token || ''}`,
+                'Authorization': `Bearer ${idToken || ''}`,
               },
               body: JSON.stringify({
                 razorpay_order_id: response.razorpay_order_id,
@@ -282,9 +307,9 @@ export default function PaymentPage() {
           }
         },
         prefill: {
-          name: user?.user_metadata?.full_name || user?.email || 'Customer',
+          name: user?.email || 'Customer',
           email: user?.email || '',
-          contact: user?.user_metadata?.phone || ''
+          contact: user?.phone || ''
         },
         theme: {
           color: '#3B82F6'

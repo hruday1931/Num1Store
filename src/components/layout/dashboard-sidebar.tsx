@@ -234,7 +234,7 @@ export function DashboardSidebar({ userRole }: DashboardSidebarProps) {
             <div className="mb-3">
               <p className="text-sm text-purple-200">Welcome back,</p>
               <p className="text-white font-medium truncate">
-                {user?.user_metadata?.full_name || user?.email || 'User'}
+                {user?.email || 'User'}
               </p>
             </div>
           )}

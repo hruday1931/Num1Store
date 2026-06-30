@@ -2,11 +2,9 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabaseClient } from '@/utils/supabase/client';
-
-const supabase = supabaseClient();
+import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
-import { Mail, Lock, User, Eye, EyeOff, CheckCircle } from 'lucide-react';
+import { Mail, Lock, User, Eye, EyeOff } from 'lucide-react';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
 
@@ -17,7 +15,6 @@ export default function SignUpPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const router = useRouter();
@@ -55,7 +52,7 @@ export default function SignUpPage() {
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    
+
     if (!validateForm()) {
       return;
     }
@@ -63,85 +60,50 @@ export default function SignUpPage() {
     setLoading(true);
 
     try {
+      console.log('=== SIGN UP ATTEMPT ===');
+      console.log('Email:', email);
+      console.log('Full Name:', fullName);
+
       // Sign up user with Supabase
-      const { data: authData, error: authError } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: {
             full_name: fullName,
-          }
-        }
+          },
+        },
       });
 
-      if (authError) throw authError;
+      if (error) throw error;
 
-      // Create user profile
-      if (authData.user) {
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert({
-            id: authData.user.id,
-            full_name: fullName,
-          } as any);
+      console.log('Sign up successful:', data.user?.email);
 
-        if (profileError) {
-          console.error('Profile creation error:', profileError);
-          // Don't throw error, user can still sign in
-        }
-      }
-
-      // Check if user needs to confirm email
-      if (authData.user && !authData.user.email_confirmed_at) {
-        // Redirect to check-email page with email parameter
-        router.push(`/auth/check-email?email=${encodeURIComponent(email)}`);
-      } else {
-        // User is automatically signed in, redirect to home
+      // Wait a moment for auth state to update, then redirect
+      setTimeout(() => {
+        console.log('Redirecting to home');
         router.push('/');
-      }
+      }, 500);
+
     } catch (error: any) {
-      setError(error.message || 'An error occurred during sign up');
+      console.error('=== SIGN UP FAILED ===');
+      console.error('Error code:', error.code);
+      console.error('Error message:', error.message);
+
+      // Handle Supabase specific error codes
+      if (error.message.includes('User already registered')) {
+        setError('An account with this email already exists. Please sign in instead.');
+      } else if (error.message.includes('Password should be')) {
+        setError('Password is too weak. Please use a stronger password.');
+      } else if (error.message.includes('Unable to validate email address')) {
+        setError('Invalid email address format.');
+      } else {
+        setError(error.message || 'An error occurred during sign up');
+      }
     } finally {
       setLoading(false);
     }
   };
-
-  if (success) {
-    return (
-      <div className="min-h-screen flex flex-col bg-purple-50">
-        <Header />
-        
-        <main className="flex-1 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-          <div className="max-w-md w-full">
-            <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
-              <div className="flex justify-center mb-4">
-                <CheckCircle className="h-16 w-16 text-green-500" />
-              </div>
-              
-              <h2 className="text-2xl font-bold text-black mb-2">
-                Check Your Email
-              </h2>
-              <p className="text-black mb-6">
-                We've sent a confirmation email to <strong>{email}</strong>. Please click the link in the email to verify your account, then sign in.
-              </p>
-              <p className="text-sm text-black mb-6">
-                Didn't receive the email? Check your spam folder or try signing up again.
-              </p>
-              
-              <Link
-                href="/auth/signin"
-                className="inline-flex items-center justify-center px-6 py-3 border border-transparent text-sm font-medium rounded-lg text-white bg-green-500 hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
-              >
-                Go to Sign In
-              </Link>
-            </div>
-          </div>
-        </main>
-        
-        <Footer />
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen flex flex-col bg-purple-50">
@@ -200,7 +162,7 @@ export default function SignUpPage() {
                     name="fullName"
                     type="text"
                     required
-                    className="appearance-none relative block w-full pl-10 pr-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                    className="appearance-none relative block w-full pl-10 pr-3 py-3 border border-gray-300 placeholder-gray-500 text-black rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 sm:text-sm"
                     placeholder="Enter your full name"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
@@ -223,7 +185,7 @@ export default function SignUpPage() {
                     type="email"
                     autoComplete="email"
                     required
-                    className="appearance-none relative block w-full pl-10 pr-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                    className="appearance-none relative block w-full pl-10 pr-3 py-3 border border-gray-300 placeholder-gray-500 text-black rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 sm:text-sm"
                     placeholder="Enter your email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -245,7 +207,7 @@ export default function SignUpPage() {
                     name="password"
                     type={showPassword ? "text" : "password"}
                     required
-                    className="appearance-none relative block w-full pl-10 pr-10 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                    className="appearance-none relative block w-full pl-10 pr-10 py-3 border border-gray-300 placeholder-gray-500 text-black rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 sm:text-sm"
                     placeholder="Create a password (min. 6 characters)"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -278,7 +240,7 @@ export default function SignUpPage() {
                     name="confirmPassword"
                     type={showConfirmPassword ? "text" : "password"}
                     required
-                    className="appearance-none relative block w-full pl-10 pr-10 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                    className="appearance-none relative block w-full pl-10 pr-10 py-3 border border-gray-300 placeholder-gray-500 text-black rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 sm:text-sm"
                     placeholder="Confirm your password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}

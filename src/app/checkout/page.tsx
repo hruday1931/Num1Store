@@ -16,6 +16,7 @@ import { AddressData } from '@/types';
 import { Minus, Plus, ShoppingCart, ArrowRight, MapPin, CreditCard, Truck, Shield, Package, ArrowLeft, Trash2 } from 'lucide-react';
 import { safeFetch } from '@/utils/fetch-wrapper';
 import Image from 'next/image';
+import { supabase } from '@/lib/supabase';
 
 interface CheckoutAddressData {
   full_name: string;
@@ -29,7 +30,7 @@ interface CheckoutAddressData {
 export default function CheckoutPage() {
   const router = useRouter();
   const { cartItems, updateQuantity, removeFromCart } = useCart();
-  const { user, session, loading: authLoading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { success, error: showError, warning } = useToast();
 
   const [loading, setLoading] = useState(true);
@@ -118,11 +119,20 @@ export default function CheckoutPage() {
     try {
       setProcessing(true);
       
+      // Get fresh session token
+      const { data: { session: freshSession }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError || !freshSession || !freshSession.access_token) {
+        showError('Session expired. Please sign in again.');
+        router.push('/auth/signin');
+        return;
+      }
+      
       const data = await safeFetch('/api/checkout', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token || ''}`
+          'Authorization': `Bearer ${freshSession.access_token}`
         },
         body: JSON.stringify({
           amount: calculateTotal() * 100, // Convert to paise for Razorpay

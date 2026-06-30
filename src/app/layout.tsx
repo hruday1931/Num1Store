@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider, CartProvider, WishlistProvider, ToastProvider } from "@/contexts";
+import { BottomNavigation } from "@/components/layout/bottom-navigation";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -65,6 +66,7 @@ export default function RootLayout({
                 <div className="fade-in min-h-full">
                   {children}
                 </div>
+                <BottomNavigation />
               </ToastProvider>
             </WishlistProvider>
           </CartProvider>

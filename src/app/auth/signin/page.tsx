@@ -1,10 +1,8 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { supabaseClient } from '@/utils/supabase/client';
-
-const supabase = supabaseClient();
+import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { Header } from '@/components/layout/header';
@@ -25,35 +23,18 @@ function SignInContent() {
     setLoading(true);
     setError(null);
 
-    // Validate environment variables first
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    
-    if (!supabaseUrl || supabaseUrl.includes('your-project-id')) {
-      setError('⚠️ Authentication service not configured. Please run "node setup-supabase.js" for setup instructions.');
-      setLoading(false);
-      return;
-    }
-
     try {
       console.log('=== SIGN IN ATTEMPT ===');
       console.log('Email:', email);
-      console.log('Supabase URL:', supabaseUrl);
-      console.log('Supabase client exists:', !!supabase);
       
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      console.log('Sign in response:', { data, error });
+      if (error) throw error;
 
-      if (error) {
-        console.error('Sign in error:', error);
-        throw error;
-      }
-
-      console.log('Sign in successful, waiting for auth state change...');
+      console.log('Sign in successful:', data.user?.email);
       
       // Wait a moment for auth state to update, then redirect
       setTimeout(() => {
@@ -64,22 +45,16 @@ function SignInContent() {
       
     } catch (error: any) {
       console.error('=== SIGN IN FAILED ===');
-      console.error('Full error object:', error);
-      console.error('Error name:', error.name);
-      console.error('Error message:', error.message);
       console.error('Error code:', error.code);
-      console.error('Error status:', error.status);
-      console.error('Error stack:', error.stack);
+      console.error('Error message:', error.message);
       
-      // Handle specific error types
-      if (error.name === 'AuthRetryableFetchError') {
-        setError('Unable to connect to authentication service. Please check your internet connection and try again.');
-      } else if (error.message?.includes('Email not confirmed') || error.message?.includes('email_confirmed')) {
-        setError('Please verify your email before logging in. Check your inbox for the confirmation link.');
-      } else if (error.message?.includes('Invalid login credentials')) {
+      // Handle Supabase specific error codes
+      if (error.message === 'Invalid login credentials') {
         setError('Invalid email or password. Please try again.');
-      } else if (error.message?.includes('your-project-id')) {
-        setError('Authentication service not configured properly. Please contact support.');
+      } else if (error.message.includes('too many requests')) {
+        setError('Too many failed attempts. Please try again later or reset your password.');
+      } else if (error.message.includes('Email not confirmed')) {
+        setError('Please confirm your email address before signing in.');
       } else {
         setError(error.message || 'An error occurred during sign in');
       }
@@ -146,7 +121,7 @@ function SignInContent() {
                     type="email"
                     autoComplete="email"
                     required
-                    className="appearance-none relative block w-full pl-10 pr-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                    className="appearance-none relative block w-full pl-10 pr-3 py-3 border border-gray-300 placeholder-gray-500 text-black rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 sm:text-sm"
                     placeholder="Enter your email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -169,7 +144,7 @@ function SignInContent() {
                     type={showPassword ? "text" : "password"}
                     autoComplete="current-password"
                     required
-                    className="appearance-none relative block w-full pl-10 pr-10 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                    className="appearance-none relative block w-full pl-10 pr-10 py-3 border border-gray-300 placeholder-gray-500 text-black rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 sm:text-sm"
                     placeholder="Enter your password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}

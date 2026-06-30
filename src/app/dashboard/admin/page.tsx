@@ -16,6 +16,27 @@ export default function AdminDashboard() {
     totalOrders: 0,
     totalRevenue: 0
   });
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Check if user is admin
+    const checkAdminStatus = async () => {
+      if (!user?.email) {
+        setIsAdmin(false);
+        setLoading(false);
+        return;
+      }
+
+      // For now, check if email is admin (you can customize this)
+      // TODO: Implement proper role check from Supabase profiles table
+      const adminEmails = ['admin@num1store.com', 'hruday1931@gmail.com'];
+      setIsAdmin(adminEmails.includes(user.email));
+      setLoading(false);
+    };
+
+    checkAdminStatus();
+  }, [user]);
 
   useEffect(() => {
     // Fetch admin stats from API
@@ -30,12 +51,23 @@ export default function AdminDashboard() {
       });
     };
 
-    if (user?.role === 'admin') {
+    if (isAdmin) {
       fetchStats();
     }
-  }, [user]);
+  }, [isAdmin]);
 
-  if (!user || user.role !== 'admin') {
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user || !isAdmin) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center max-w-md">
@@ -83,7 +115,7 @@ export default function AdminDashboard() {
         <div className="p-4 lg:p-8">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-gray-900">
-              Welcome back, {user?.user_metadata?.full_name || 'Admin'}
+              Welcome back, {user?.email || 'Admin'}
             </h1>
             <p className="text-gray-600 mt-2">Manage your marketplace from here</p>
           </div>

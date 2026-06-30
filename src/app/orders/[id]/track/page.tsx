@@ -8,7 +8,6 @@ import Link from 'next/link';
 import { useAuth } from '@/contexts';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
-import { BottomNavigation } from '@/components/layout/bottom-navigation';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/contexts/toast-context';
 import { Order, OrderItem } from '@/types';
@@ -71,7 +70,7 @@ export default function OrderTrackPage() {
           table: 'orders',
           filter: `id=eq.${orderId}`
         },
-        (payload) => {
+        (payload: any) => {
           console.log('Order status updated:', payload.new);
           setOrder(prevOrder => {
             if (!prevOrder) return null;
@@ -507,7 +506,6 @@ export default function OrderTrackPage() {
         </div>
       </main>
       <Footer />
-      <BottomNavigation />
     </div>
   );
 }

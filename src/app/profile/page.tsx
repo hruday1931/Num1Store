@@ -12,7 +12,7 @@ import { Footer } from '@/components/layout/footer';
 import { useToast } from '@/contexts';
 
 export default function ProfilePage() {
-  const { user, session, loading, signOut } = useAuth();
+  const { user, loading, signOut } = useAuth();
   const router = useRouter();
   const [profileData, setProfileData] = useState<Profile | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -27,11 +27,11 @@ export default function ProfilePage() {
   // Removed authentication redirect - allow browsing without signin
 
   useEffect(() => {
-    if (user && session) {
+    if (user) {
       fetchProfileData();
       fetchOrderHistory();
     }
-  }, [user, session]);
+  }, [user]);
 
   const fetchProfileData = async () => {
     if (!user) return;
@@ -101,10 +101,13 @@ export default function ProfilePage() {
         updated_at: new Date().toISOString()
       };
 
-      const { error: updateError } = await (supabase as any)
+      const { error: updateError, data } = await (supabase as any)
         .from('profiles')
         .update(updateData)
-        .eq('id', user.id);
+        .eq('id', user.id)
+        .select();
+
+      console.log('Profile update response:', { updateError, data });
 
       if (!updateError) {
         // Update the profileData with the new values
@@ -118,7 +121,7 @@ export default function ProfilePage() {
         setIsEditing(false);
         success('Profile updated successfully!');
       } else {
-        console.error('Error updating profile:', updateError);
+        console.error('Supabase Profile Update Error:', updateError);
         error('Failed to update profile');
       }
     } catch (err) {
@@ -152,7 +155,7 @@ export default function ProfilePage() {
     );
   }
 
-  if (!session || !user) {
+  if (!user) {
     return (
       <div className="min-h-screen flex flex-col">
         <Header />
@@ -245,9 +248,6 @@ export default function ProfilePage() {
                     <CheckCircle className="w-3 h-3 mr-1" />
                     Authenticated
                   </span>
-                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 capitalize">
-                    {user.role}
-                  </span>
                 </div>
               </div>
             </div>
@@ -267,7 +267,7 @@ export default function ProfilePage() {
                         type="text"
                         value={editForm.full_name}
                         onChange={(e) => setEditForm({ ...editForm, full_name: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-black"
                       />
                     </div>
                     <div>
@@ -278,7 +278,7 @@ export default function ProfilePage() {
                         type="tel"
                         value={editForm.phone}
                         onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-black"
                       />
                     </div>
                     <div>
@@ -289,7 +289,7 @@ export default function ProfilePage() {
                         value={editForm.address}
                         onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
                         rows={3}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-black"
                       />
                     </div>
                     <div className="flex gap-3">

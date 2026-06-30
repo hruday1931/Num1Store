@@ -12,11 +12,8 @@ export const supabaseClient = () => {
     
     // Validate environment variables before creating client
     if (!supabaseUrl || !supabaseAnonKey) {
-      throw new Error(
-        'Supabase environment variables are missing. Please check your .env.local file:\n' +
-        '- NEXT_PUBLIC_SUPABASE_URL\n' +
-        '- NEXT_PUBLIC_SUPABASE_ANON_KEY'
-      );
+      console.error('Supabase environment variables are missing. Please check your .env.local file:\n- NEXT_PUBLIC_SUPABASE_URL\n- NEXT_PUBLIC_SUPABASE_ANON_KEY');
+      return null as any;
     }
     
     supabaseClientInstance = createClient<Database>(supabaseUrl, supabaseAnonKey, {

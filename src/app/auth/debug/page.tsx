@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts';
 import Link from 'next/link';
 
 export default function AuthDebugPage() {
-  const { user, session, loading } = useAuth();
+  const { user, loading } = useAuth();
   const [debugInfo, setDebugInfo] = useState<any>(null);
   const [testResults, setTestResults] = useState<string[]>([]);
 
@@ -67,7 +67,7 @@ export default function AuthDebugPage() {
     };
 
     runDiagnostics();
-  }, [user, session, loading]);
+  }, [user, loading]);
 
   const testSignIn = async () => {
     try {
@@ -106,13 +106,12 @@ export default function AuthDebugPage() {
             <h2 className="text-xl font-semibold mb-4">Current Auth State</h2>
             <div className="space-y-2 text-sm">
               <div><strong>Loading:</strong> {loading ? '✅ Yes' : '❌ No'}</div>
-              <div><strong>User:</strong> {user ? `✅ ${user.email} (${user.role})` : '❌ None'}</div>
-              <div><strong>Session:</strong> {session ? '✅ Active' : '❌ None'}</div>
-              {session && (
+              <div><strong>User:</strong> {user ? `✅ ${user.email}` : '❌ None'}</div>
+              {user && (
                 <div className="mt-2 p-2 bg-green-50 rounded">
-                  <div><strong>User ID:</strong> {session.user.id}</div>
-                  <div><strong>Email:</strong> {session.user.email}</div>
-                  <div><strong>Expires:</strong> {new Date(session.expires_at! * 1000).toLocaleString()}</div>
+                  <div><strong>User ID:</strong> {user.id}</div>
+                  <div><strong>Email:</strong> {user.email}</div>
+                  <div><strong>Email Verified:</strong> {user.email_confirmed_at ? '✅ Yes' : '❌ No'}</div>
                 </div>
               )}
             </div>

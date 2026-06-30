@@ -60,15 +60,14 @@ export default function CustomerDashboard() {
       ]);
     };
 
-    if (user?.role === 'customer') {
+    if (user) {
       fetchCustomerData();
     }
   }, [user]);
 
-  if (!user || user.role !== 'customer') {
-    if (!user) {
-      // Show empty state for non-logged in users
-      return (
+  if (!user) {
+    // Show empty state for non-logged in users
+    return (
         <div className="min-h-screen bg-gray-50">
           <Header />
           <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -101,41 +100,6 @@ export default function CustomerDashboard() {
         </div>
       );
     }
-    
-    // Show role mismatch for logged in users
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <Header />
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="text-center max-w-md mx-auto">
-            <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <ShoppingBag className="w-12 h-12 text-gray-400" />
-            </div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">Customer Dashboard</h1>
-            <p className="text-gray-600 mb-6">
-              Sign in as a customer to access your dashboard.
-            </p>
-            <div className="space-x-4">
-              <Button
-                onClick={() => window.location.href = '/'}
-                className="bg-gray-600 hover:bg-gray-700 text-white"
-              >
-                Back to Home
-              </Button>
-              <Button
-                onClick={() => window.location.href = '/products'}
-                variant="outline"
-                className="border-gray-300 text-gray-700 hover:bg-gray-50"
-              >
-                Browse Products
-              </Button>
-            </div>
-          </div>
-        </main>
-        <Footer />
-      </div>
-    );
-  }
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -159,7 +123,7 @@ export default function CustomerDashboard() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Customer Dashboard</h1>
-          <p className="text-gray-600 mt-2">Welcome back, {user.user_metadata?.full_name || 'Customer'}!</p>
+          <p className="text-gray-600 mt-2">Welcome back, {user?.email || 'Customer'}!</p>
         </div>
 
         {/* Quick Stats */}

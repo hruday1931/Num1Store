@@ -25,7 +25,8 @@ const getSupabaseClient = () => {
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   
   if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error('Supabase environment variables are missing');
+    console.error('Supabase environment variables are missing');
+    return null;
   }
   
   return createClient(supabaseUrl, supabaseAnonKey);
@@ -55,6 +56,21 @@ export function HeroSlider() {
 
       try {
         const supabase = getSupabaseClient();
+        if (!supabase) {
+          console.error('Supabase client not available, using fallback data');
+          setHeroBanners([
+            {
+              id: '1',
+              title: 'Electronics Week',
+              subtitle: 'Best deals on gadgets & tech',
+              image_url: 'https://images.unsplash.com/photo-1556656793-08538906a9f8?w=1920&h=600&fit=crop&auto=format&q=80',
+              button_text: 'Shop Now',
+              active: true
+            }
+          ]);
+          setLoading(false);
+          return;
+        }
         const { data, error } = await supabase
           .from('hero_banners')
           .select('*')

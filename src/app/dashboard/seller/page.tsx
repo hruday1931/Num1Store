@@ -6,7 +6,8 @@ import { DashboardSidebar } from '@/components/layout/dashboard-sidebar';
 import { StatsCard } from '@/components/ui/stats-card';
 import { Button } from '@/components/ui/button';
 import { Package, DollarSign, ShoppingBag, TrendingUp, Plus, Eye, Store } from 'lucide-react';
-import { Product } from '@/types';
+import { Product, Profile } from '@/types';
+import { supabaseClient } from '@/utils/supabase/client';
 
 interface SellerProduct {
   id: number;
@@ -18,6 +19,7 @@ interface SellerProduct {
 
 export default function SellerDashboard() {
   const { user } = useAuth();
+  const [isVendor, setIsVendor] = useState(false);
   const [stats, setStats] = useState({
     totalProducts: 0,
     totalOrders: 0,
@@ -27,6 +29,23 @@ export default function SellerDashboard() {
   const [products, setProducts] = useState<SellerProduct[]>([]);
 
   useEffect(() => {
+    // Check if user is a vendor
+    const checkVendorStatus = async () => {
+      if (!user?.email) return;
+      
+      const supabase = supabaseClient();
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('is_vendor')
+        .eq('id', user.id)
+        .single() as { data: Pick<Profile, 'is_vendor'> | null; error: any };
+      
+      if (profile?.is_vendor) {
+        setIsVendor(true);
+        fetchSellerData();
+      }
+    };
+
     // Fetch seller stats and products from API
     const fetchSellerData = async () => {
       // TODO: Implement API calls to fetch seller data
@@ -44,12 +63,10 @@ export default function SellerDashboard() {
       ]);
     };
 
-    if (user?.role === 'seller') {
-      fetchSellerData();
-    }
+    checkVendorStatus();
   }, [user]);
 
-  if (!user || user.role !== 'seller') {
+  if (!user || !isVendor) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center max-w-md">
@@ -98,7 +115,7 @@ export default function SellerDashboard() {
           <div className="mb-8 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">
-                Welcome back, {user?.user_metadata?.full_name || 'Seller'}
+                Welcome back, {user?.email || 'Seller'}
               </h1>
               <p className="text-gray-600 mt-2">Manage your products and orders</p>
             </div>

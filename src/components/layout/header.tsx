@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth, useCart } from '@/contexts';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/contexts';
+import { supabase } from '@/lib/supabase';
 import { ShoppingCart, User, Menu, X, Home, Package, Store, Heart, LogIn, Search, Briefcase, Info } from 'lucide-react';
 
 export function Header() {
@@ -17,6 +18,7 @@ export function Header() {
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [userFullName, setUserFullName] = useState<string | null>(null);
   const { error } = useToast();
 
   const handleSignOut = async () => {
@@ -68,6 +70,34 @@ export function Header() {
     }
   }, []);
 
+  // Fetch user's full name from profiles table
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      if (user) {
+        try {
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('id', user.id)
+            .single();
+
+          if (data && !error) {
+            setUserFullName(data.full_name);
+          } else {
+            setUserFullName(null);
+          }
+        } catch (err) {
+          console.error('Error fetching user profile:', err);
+          setUserFullName(null);
+        }
+      } else {
+        setUserFullName(null);
+      }
+    };
+
+    fetchUserProfile();
+  }, [user]);
+
   const handleRecentSearchClick = (search: string) => {
     setSearchQuery(search);
     setIsMobileSearchOpen(false);
@@ -75,7 +105,7 @@ export function Header() {
   };
 
   const userNavigation = [
-    { name: 'Dashboard', href: user?.role === 'admin' ? '/dashboard/admin' : user?.role === 'seller' ? '/dashboard/seller' : '/dashboard/customer' },
+    { name: 'Dashboard', href: '/dashboard' },
     { name: 'My Orders', href: '/orders' },
     { name: 'Profile', href: '/profile' },
     { name: 'Settings', href: '/settings' },
@@ -169,7 +199,7 @@ export function Header() {
                 <div className="relative group">
                   <Button variant="ghost" className="flex items-center space-x-2">
                     <User className="h-4 w-4" />
-                    <span>{user.user_metadata?.full_name || user.email}</span>
+                    <span>{userFullName || user.email}</span>
                   </Button>
                   <div className="absolute right-0 mt-2 w-48 bg-gray-800 border border-gray-600 rounded-md shadow-lg py-1 z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all">
                     {userNavigation.map((item) => (

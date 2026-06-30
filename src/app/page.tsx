@@ -4,7 +4,6 @@ import Link from 'next/link';
 import React from 'react';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
-import { BottomNavigation } from '@/components/layout/bottom-navigation';
 import { Button } from '@/components/ui/button';
 import { HeroSlider } from '@/components/hero/hero-slider';
 import { CategoryBar } from '@/components/category-slider/category-bar';
@@ -134,7 +133,6 @@ export default function Home() {
       </main>
       
       <Footer />
-      <BottomNavigation />
     </div>
   );
 }

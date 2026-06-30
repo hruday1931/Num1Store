@@ -77,8 +77,8 @@ export function BottomNavigation() {
   if (!isVisible) return null;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 z-50 md:hidden">
-      <div className="flex flex-row justify-around items-center h-14">
+    <div className="fixed bottom-0 left-0 right-0 z-[9999] w-full bg-white border-t border-gray-200 shadow-lg block md:hidden">
+      <div className="flex flex-row justify-around items-center h-16">
         {navigation.map((item) => {
           const Icon = item.icon;
           const isActive = pathname === item.href;
@@ -114,9 +114,6 @@ export function BottomNavigation() {
           );
         })}
       </div>
-      
-      {/* Add padding for safe area on iOS devices */}
-      <div className="h-safe-area-inset-bottom bg-white"></div>
     </div>
   );
 }

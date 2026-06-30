@@ -7,9 +7,10 @@ import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
 import { Button } from '@/components/ui/button';
 import { CheckCircle, ShoppingBag, ArrowRight, Package, Truck, CreditCard } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 
 function OrderSuccessContent() {
-  const { user, session, loading } = useAuth();
+  const { user, loading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [orderDetails, setOrderDetails] = useState<any>(null);
@@ -37,10 +38,16 @@ function OrderSuccessContent() {
   }, [user, loading, router, searchParams]);
 
   const fetchOrderDetails = async (orderId: string) => {
-    if (!user || !session) return;
+    if (!user) return;
     
     setLoadingOrder(true);
     try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session || !session.access_token) {
+        console.error('Session error:', sessionError);
+        return;
+      }
+      
       const token = session.access_token;
       const response = await fetch(`/api/orders/${orderId}`, {
         headers: {

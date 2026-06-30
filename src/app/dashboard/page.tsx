@@ -65,40 +65,15 @@ export default function DashboardPage() {
 
   // Role-based dashboard access
   const getDashboardInfo = () => {
-    switch (user.role) {
-      case 'customer':
-        return {
-          title: 'Customer Dashboard',
-          description: 'View your orders, wishlist, and account information',
-          icon: ShoppingBag,
-          href: '/dashboard/customer',
-          color: 'bg-blue-600 hover:bg-blue-700'
-        };
-      case 'seller':
-        return {
-          title: 'Seller Dashboard',
-          description: 'Manage your products, orders, and store settings',
-          icon: Store,
-          href: '/dashboard/seller',
-          color: 'bg-green-600 hover:bg-green-700'
-        };
-      case 'admin':
-        return {
-          title: 'Admin Dashboard',
-          description: 'Manage users, vendors, and marketplace settings',
-          icon: Users,
-          href: '/dashboard/admin',
-          color: 'bg-purple-600 hover:bg-purple-700'
-        };
-      default:
-        return {
-          title: 'Dashboard',
-          description: 'Access your personalized dashboard',
-          icon: ShoppingBag,
-          href: '/dashboard/customer',
-          color: 'bg-gray-600 hover:bg-gray-700'
-        };
-    }
+    // For Firebase, we'll use a default customer dashboard
+    // In production, implement custom claims or Firestore for role management
+    return {
+      title: 'Customer Dashboard',
+      description: 'View your orders, wishlist, and account information',
+      icon: ShoppingBag,
+      href: '/dashboard/customer',
+      color: 'bg-blue-600 hover:bg-blue-700'
+    };
   };
 
   const dashboardInfo = getDashboardInfo();

@@ -5,7 +5,7 @@ import { useAuth, useCart } from '@/contexts';
 import { supabaseClient } from '@/utils/supabase/client';
 
 export default function DebugCartPage() {
-  const { user, session } = useAuth();
+  const { user } = useAuth();
   const { cartItems, loading } = useCart();
   const [debugInfo, setDebugInfo] = useState<any>({});
   const supabase = supabaseClient();
@@ -18,9 +18,6 @@ export default function DebugCartPage() {
           hasUser: !!user,
           userId: user?.id,
           userEmail: user?.email,
-          hasSession: !!session,
-          sessionId: session?.user?.id,
-          sessionExpiresAt: session?.expires_at,
           currentTime: Math.floor(Date.now() / 1000)
         },
         cart: {
@@ -77,7 +74,7 @@ export default function DebugCartPage() {
     };
 
     runDebug();
-  }, [user, session, cartItems, loading]);
+  }, [user, cartItems, loading]);
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">

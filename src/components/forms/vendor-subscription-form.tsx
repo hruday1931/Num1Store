@@ -142,7 +142,7 @@ export function VendorSubscriptionForm({ onSuccess, onError }: VendorSubscriptio
       const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
       
       if (!supabaseUrl || !supabaseAnonKey) {
-        throw new Error('Supabase environment variables are missing');
+        throw new Error('Supabase environment variables are missing. Please configure them in your environment.');
       }
       
       const untypedSupabase = createClient(

@@ -18,7 +18,7 @@ import { safeFetch } from '@/utils/fetch-wrapper';
 import { supabaseClient } from '@/utils/supabase/client';
 
 export default function CartPage() {
-  const { user, session, loading } = useAuth();
+  const { user, loading } = useAuth();
   const supabase = supabaseClient();
   const { cartItems, loading: cartLoading, updateQuantity, removeFromCart, removeItem, cartTotal, clearCart, fetchCartItems } = useCart();
   const router = useRouter();
@@ -105,7 +105,7 @@ export default function CartPage() {
       return;
     }
 
-    if (!user || !session) {
+    if (!user) {
       showError('Please sign in to proceed with checkout.');
       router.push('/auth/signin');
       return;
@@ -222,21 +222,17 @@ export default function CartPage() {
   const handleCheckout = async () => {
     if (!selectedAddress) {
       showError('Please select a shipping address before proceeding to checkout.');
-      showError('Please select a shipping address');
       return;
     }
     
     // Debug authentication state
     console.log('Checkout Debug - Auth State:', {
       hasUser: !!user,
-      hasSession: !!session,
       userId: user?.id,
-      sessionId: session?.user?.id,
-      sessionExpiresAt: session?.expires_at,
       currentTime: Math.floor(Date.now() / 1000)
     });
     
-    if (!user || !session) {
+    if (!user) {
       showError('Please sign in to proceed with checkout.');
       router.push('/auth/signin');
       return;
